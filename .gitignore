@@ -1,0 +1,6 @@
+*.t7
+*.csv
+*.xlsx
+*.log
+
+__pycache__
