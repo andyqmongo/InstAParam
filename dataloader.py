@@ -80,20 +80,18 @@ def dataset_to_loader(dataset, dset_name, num_tasks, isTrain, batch_size, shuffl
     
     return data_loaders
 
-def getDataloaders(data, shuffle=True, splits=['train', 'test'],
+def getDataloaders(dset_name, shuffle=True, splits=['train', 'test'],
                    data_root='./data', batch_size=10, 
                    num_workers=0, num_tasks=5, raw=False, **kwargs):
 
     train_loaders, test_loaders = None, None, None
-    print('loading ' + data)
-    if data.find('C10') >= 0:
-        if data.find('C100') >= 0:
-            dset_name = 'C100'
+    print('loading ' + dataset)
+    if dset_name.find('C10') >= 0:
+        if dataset.find('C100') >= 0:
             d_func = dset.CIFAR100
             normalize = transforms.Normalize(mean=[0.5071, 0.4867, 0.4408],
                                              std=[0.2675, 0.2565, 0.2761])
         else:
-            dset_name = 'C10'
             d_func = dset.CIFAR10
             normalize = transforms.Normalize(mean=[0.4914, 0.4824, 0.4467],
                                              std=[0.2471, 0.2435, 0.2616])
@@ -114,11 +112,11 @@ def getDataloaders(data, shuffle=True, splits=['train', 'test'],
             test_set = d_func(data_root, train=False, transform=test_compose)
             test_set = sorted(test_set, key=lambda s:s[1])
 
-            test_loaders = getDataloaders_CL(test_set, dset_name=dset_name, num_tasks=num_tasks, isTrain=True, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
+            test_loaders = dataset_to_loader(test_set, dset_name=dset_name, num_tasks=num_tasks, isTrain=True, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
 
 
-    elif data.find('Tiny') >= 0:
-
+    elif dset_name.find('Tiny') >= 0:
+        pass
     else:
         raise NotImplemented
 
