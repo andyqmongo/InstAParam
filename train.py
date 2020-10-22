@@ -90,8 +90,8 @@ def get_reward(preds, targets, policy, elasped):
 
 def train_online_and_test(trainLoaders, testLoaders):
 
-    agent.train()
-    instanet.eval()
+    controller.train()
+    meta_graph.eval()
     
     policies_real_sum = []
     
@@ -108,17 +108,17 @@ def train_online_and_test(trainLoaders, testLoaders):
             matches = []
             policies = []
             print('task 0, load pretrained for meta-graph')
-            instanet.assign_mask()
-            instanet.eval()
-            policy_zero = Variable(torch.zeros(args.batch_size, instanet.num_of_blocks, instanet.num_of_actions)).cpu()
+            meta_graph.assign_mask()
+            meta_graph.eval()
+            policy_zero = Variable(torch.zeros(args.batch_size, meta_graph.num_of_blocks, meta_graph.num_of_actions)).cpu()
             for _, (inputs, targets) in tqdm.tqdm(enumerate(testLoaders[0]), total=len(testLoaders[0])):
                 
                 with torch.no_grad():
                     inputs, targets = Variable(inputs).cuda(), Variable(targets).cuda()
                 #--------------------------------------------------------------------------------------------#
                 with torch.no_grad():
-                    policy = Variable(torch.ones(inputs.shape[0], instanet.num_of_blocks, instanet.num_of_actions)).cuda()
-                    preds, _  = instanet.forward(inputs, policy.data.squeeze(0))
+                    policy = Variable(torch.ones(inputs.shape[0], meta_graph.num_of_blocks, meta_graph.num_of_actions)).cuda()
+                    preds, _  = meta_graph.forward(inputs, policy.data.squeeze(0))
                 #--------------------------------------------------------------------------------------------#
                 
                 curSubclass = range(0*task_length, 0*task_length+task_length)
@@ -146,16 +146,16 @@ def train_online_and_test(trainLoaders, testLoaders):
             for epoch in range(args.pretrain_epochs):
                 for _, (inputs, targets) in tqdm.tqdm(enumerate(trainLoaders[0]), total=len(trainLoaders[0])):
                     inputs, targets = Variable(inputs).cuda(non_blocking=True), Variable(targets).cuda(non_blocking=True)
-                    instanet.train()
-                    instanet.assign_mask()
+                    meta_graph.train()
+                    meta_graph.assign_mask()
 
                     if epoch >= args.pretrain_epochs//2:
-                        policy_shape = (inputs.shape[0], instanet.num_of_blocks, instanet.num_of_actions)
+                        policy_shape = (inputs.shape[0], meta_graph.num_of_blocks, meta_graph.num_of_actions)
                         policy = Variable(torch.from_numpy(np.random.binomial(1, 0.5, policy_shape))).long().cuda()
                     else:
-                        policy = Variable(torch.ones(args.batch_size, instanet.num_of_blocks, instanet.num_of_actions)).cuda()
+                        policy = Variable(torch.ones(args.batch_size, meta_graph.num_of_blocks, meta_graph.num_of_actions)).cuda()
 
-                    pm, _ = instanet.forward(inputs, policy)
+                    pm, _ = meta_graph.forward(inputs, policy)
                     pm[:, (task+1)*task_length:] = 0.0
 
                     net_loss = F.cross_entropy(pm, targets)
@@ -163,10 +163,10 @@ def train_online_and_test(trainLoaders, testLoaders):
                     optimizer_net.zero_grad()
                     net_loss.backward()
                     optimizer_net.step()
-                    instanet.store_back()
+                    meta_graph.store_back()
 
             print('Pretrain done')
-            policy_zero = Variable(torch.zeros(args.batch_size, instanet.num_of_blocks, instanet.num_of_actions)).cpu()
+            policy_zero = Variable(torch.zeros(args.batch_size, meta_graph.num_of_blocks, meta_graph.num_of_actions)).cpu()
             policies_real_sum.append(torch.sum(torch.sum(torch.stack(policy_zero), dim=0, keepdim=True)[0], dim=0, keepdim=True)[0])
             continue
 
@@ -192,10 +192,10 @@ def train_online_and_test(trainLoaders, testLoaders):
         for _, (inputs, targets) in tqdm.tqdm(enumerate(trainLoaders[task]), total=len(trainLoaders[task])):
             iteration += 1
             for iter_ in range(args.iter_per_batch):
-                instanet.assign_mask()
+                meta_graph.assign_mask()
 
                 inputs, targets = Variable(inputs).cuda(non_blocking=True), Variable(targets).cuda(non_blocking=True)
-                probs, _ = agent(inputs)
+                probs, _ = controller(inputs)
                 #---------------------------------------------------------------------#
 
                 policy_map = probs.data.clone()
@@ -214,10 +214,10 @@ def train_online_and_test(trainLoaders, testLoaders):
                 with torch.no_grad():
                     v_inputs = Variable(inputs.data)
                 
-                instanet.eval()
-                preds_map, lat_map = instanet.forward(v_inputs, policy_map)
+                meta_graph.eval()
+                preds_map, lat_map = meta_graph.forward(v_inputs, policy_map)
 
-                preds_sample, lat = instanet.forward(v_inputs, policy)
+                preds_sample, lat = meta_graph.forward(v_inputs, policy)
                 
                 #mask for incremental task learning
                 mask = [0.] * (num_tasks * task_length)
@@ -257,9 +257,9 @@ def train_online_and_test(trainLoaders, testLoaders):
 
                 #------------------------Backprop Meta-Graph Loss---------------------#    
                 #---------------------------------------------------------------------#
-                instanet.train()
+                meta_graph.train()
                 perm_policy = policy
-                pm, _ = instanet.forward(v_inputs, perm_policy)
+                pm, _ = meta_graph.forward(v_inputs, perm_policy)
 
 
                 mask = [0.] * (num_tasks * task_length)
@@ -278,9 +278,9 @@ def train_online_and_test(trainLoaders, testLoaders):
                     pol = perm_policy
                 if args.ewc_lambda > 0:
                     if task > 0 and args.dset_name == 'C10':
-                        ewc_loss= instanet.ewc_loss(pol)
+                        ewc_loss= meta_graph.ewc_loss(pol)
                     elif task > 1:
-                        ewc_loss= instanet.ewc_loss(pol)
+                        ewc_loss= meta_graph.ewc_loss(pol)
                     else:
                         ewc_loss = torch.zeros(1).cuda()
                 else:
@@ -294,11 +294,11 @@ def train_online_and_test(trainLoaders, testLoaders):
                 net_loss.backward()
                 optimizer_net.step()
                 #---------------------------------------------------------------------#
-                instanet.store_back()
+                meta_graph.store_back()
 
             if args.ewc_lambda > 0:
                 allowed_classes = range(task*task_length, (task+1)*task_length)  
-                instanet.estimate_fisher_update_by_policy(inputs, targets, policy=pol, allowed_classes=allowed_classes)
+                meta_graph.estimate_fisher_update_by_policy(inputs, targets, policy=pol, allowed_classes=allowed_classes)
 
             policies.append(policy.data)
             matches.append(match)
@@ -306,13 +306,13 @@ def train_online_and_test(trainLoaders, testLoaders):
             policies_.append(policy_map.data.cpu())
 
             # save the model
-            agent_state_dict = agent.state_dict()
-            net_state_dict = instanet.state_dict()
+            controller_state_dict = controller.state_dict()
+            net_state_dict = meta_graph.state_dict()
 
 
             if args.dset_name == 'Tiny':
                 assert task != 0
-            torch.save(agent_state_dict, os.path.join(args.cv_dir, 'controller_{}.t7'.format(task)))
+            torch.save(controller_state_dict, os.path.join(args.cv_dir, 'controller_{}.t7'.format(task)))
             if args.model == 'InstAParam-single':
                 utils.save_real_param(net_state_dict, os.path.join(args.cv_dir, 'meta_grpah_{}.t7'.format(task)))
             else:
@@ -337,31 +337,31 @@ def train_online_and_test(trainLoaders, testLoaders):
 def test(testLoaders, repro_oneshot=False, test_task=-1, cur_task=-1):
     assert test_task < num_tasks
     accs = np.zeros(num_tasks)
-    instanet_, agent_ = utils.get_model(args.model, detailed=False)
+    meta_graph_, controller_ = utils.get_model(args.model, detailed=False)
 
     loop_through_task = list(range(num_tasks)) if test_task < 0 else [test_task]
 
     assert cur_task >= 0
     if os.path.exists('{}/meta_grpah_{}.t7'.format(args.cv_dir, cur_task)):
         ckpt_net = torch.load('{}/meta_grpah_{}.t7'.format(args.cv_dir, cur_task))
-        instanet_.load_state_dict(ckpt_net, strict=False)
-        instanet_.eval().cuda()
-        instanet_.assign_mask()
+        meta_graph_.load_state_dict(ckpt_net, strict=False)
+        meta_graph_.eval().cuda()
+        meta_graph_.assign_mask()
     else:
         raise NotImplementedError("Wrong Cur task for testing")
     for task in loop_through_task:
         matches, policies = [], []
         if os.path.exists('{}/controller_{}.t7'.format(args.cv_dir, task)):
             ckpt = torch.load('{}/controller_{}.t7'.format(args.cv_dir, task))
-            agent_.load_state_dict(ckpt)
-            agent_.eval().cuda()
+            controller_.load_state_dict(ckpt)
+            controller_.eval().cuda()
 
             for _, (inputs, targets) in enumerate(testLoaders[task]):
 
                 with torch.no_grad():
                     inputs, targets = Variable(inputs).cuda(non_blocking=True), Variable(targets).cuda(non_blocking=True)
 
-                    probs, _ = agent_(inputs)
+                    probs, _ = controller_(inputs)
 
                     policy = probs.data.clone()
                     
@@ -369,11 +369,11 @@ def test(testLoaders, repro_oneshot=False, test_task=-1, cur_task=-1):
                     policy[policy >= args.mu] = 1.0
 
                     if repro_oneshot:
-                        policy = Variable(torch.ones(inputs.shape[0], instanet.num_of_blocks, instanet.num_of_actions)).float().cuda()
+                        policy = Variable(torch.ones(inputs.shape[0], meta_graph.num_of_blocks, meta_graph.num_of_actions)).float().cuda()
                     else:
                         policy = Variable(policy)
 
-                    preds, _ = instanet_.forward(inputs, policy)
+                    preds, _ = meta_graph_.forward(inputs, policy)
 
                 curSubclass = range(task*task_length, (task+1)*task_length)
 
@@ -407,26 +407,26 @@ from dataloader import getDataloaders
 trainLoaders, testLoaders = getDataloaders(dset_name=args.dset_name, shuffle=True, splits=['train', 'test'], 
         data_root=args.data_dir, batch_size=args.batch_size, num_workers=0, num_tasks=num_tasks, raw=False)
 
-instanet, agent = utils.get_model(args.model, args.dset_name)
+meta_graph, controller = utils.get_model(args.model, args.dset_name)
 
 
 if args.load_graph is not None:
     checkpoint = torch.load(args.load_graph)
-    new_state = instanet.state_dict()
+    new_state = meta_graph.state_dict()
     new_state.update(checkpoint)
-    instanet.load_state_dict(new_state, strict=False)
+    meta_graph.load_state_dict(new_state, strict=False)
 
-instanet.cuda()
-agent.cuda()
+meta_graph.cuda()
+controller.cuda()
 
 
 if args.net_optimizer == 'sgd':
-    optimizer_net = optim.SGD(instanet.parameters(), lr=args.net_lr, weight_decay=args.wd)
+    optimizer_net = optim.SGD(meta_graph.parameters(), lr=args.net_lr, weight_decay=args.wd)
 elif args.net_optimizer == 'adam':
-    optimizer_net = optim.Adam(instanet.parameters(), lr=args.net_lr, weight_decay=args.wd)
+    optimizer_net = optim.Adam(meta_graph.parameters(), lr=args.net_lr, weight_decay=args.wd)
 elif args.net_optimizer == 'sgdm':
-    optimizer_net = optim.SGD(instanet.parameters(), lr=args.net_lr, weight_decay=args.wd, momentum=0.9)
-optimizer = optim.Adam(agent.parameters(), lr=args.lr, weight_decay=args.wd)
+    optimizer_net = optim.SGD(meta_graph.parameters(), lr=args.net_lr, weight_decay=args.wd, momentum=0.9)
+optimizer = optim.Adam(controller.parameters(), lr=args.lr, weight_decay=args.wd)
 
 
 train_online_and_test(trainLoaders, testLoaders)
