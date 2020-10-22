@@ -95,7 +95,6 @@ def train_online_and_test(trainLoaders, testLoaders):
     iteration = 0
     for task in range(num_tasks):
         policies_ = []
-        #policies_train_og = []
 
         # pretrained if needed
         if args.dset_name == 'C10':
@@ -134,7 +133,6 @@ def train_online_and_test(trainLoaders, testLoaders):
                 matches.append(match)
                 policies.append(policy_zero)
 
-            #accuracy, _, _, _ = utils.performance_stats(policies, matches, matches)
             accuracy = torch.cat(matches, 0).mean()
             print('Accuracy for loaded pretrain meta-graph :{:.4f}'.format(accuracy))
             
@@ -199,11 +197,6 @@ def train_online_and_test(trainLoaders, testLoaders):
 
                 policy_map = probs.data.clone()
                 
-                #if args.mu == 'mean':
-                #    policy_map[policy_map < policy_map.mean()] = 0.0
-                #    policy_map[policy_map >= policy_map.mean()] = 1.0
-                #else:
-                #mu = float(args.mu)
                 policy_map[policy_map < args.mu] = 0.0
                 policy_map[policy_map >= args.mu] = 1.0
 
@@ -308,7 +301,6 @@ def train_online_and_test(trainLoaders, testLoaders):
             matches.append(match)
             
             policies_.append(policy_map.data.cpu())
-            #policies_train_og.append(policy_train_og.data.cpu())
 
             # save the model
             agent_state_dict = agent.state_dict()
@@ -328,9 +320,6 @@ def train_online_and_test(trainLoaders, testLoaders):
                 sys.exit()
 
         #----
-        #if task > 0:
-        #    df = pd.DataFrame(torch.mean(torch.mean(torch.stack(policies_train_og), dim=0, keepdim=True)[0], dim=0, keepdim=True)[0].cpu().numpy())
-        #    df.to_excel('{}/policies_train_t{}_og.xlsx'.format(args.cv_dir, task))
 
         policies_real_mean.append(torch.sum(torch.sum(torch.stack(policies_), dim=0, keepdim=True)[0], dim=0, keepdim=True)[0])
         print('-- policies_ mean ---')
@@ -372,11 +361,6 @@ def test(testloaders, repro_oneshot=False, test_task=-1, cur_task=-1):
 
                     policy = probs.data.clone()
                     
-                    #if args.mu == 'mean':
-                    #    policy[policy < policy.mean()] = 0.0
-                    #    policy[policy >= policy.mean()] = 1.0
-                    #else:
-                    #    mu = float(args.mu)
                     policy[policy < args.mu] = 0.0
                     policy[policy >= args.mu] = 1.0
 
@@ -398,14 +382,10 @@ def test(testloaders, repro_oneshot=False, test_task=-1, cur_task=-1):
                 _, pred_idx = preds.max(1)
                 match = (pred_idx == targets).data.float()
 
-                #reward, match, avg_elasped = get_reward(preds, targets, policy.data, lat)
 
                 matches.append(match)
-                #rewards.append(reward)
-                #policies.append(policy.data)
 
             accuracy = torch.cat(matches, 0).mean()
-            #accuracy, reward, sparsity, policy_set = utils.performance_stats(policies, rewards, matches)
             accs[task] = accuracy
         
     
