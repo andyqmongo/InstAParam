@@ -3,5 +3,6 @@
 *.xlsx
 *.log
 *.py
+models/*.py
 
 __pycache__
