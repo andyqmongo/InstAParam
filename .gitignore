@@ -2,5 +2,6 @@
 *.csv
 *.xlsx
 *.log
+*.py
 
 __pycache__
