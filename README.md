@@ -14,3 +14,23 @@ Hung-Jen Chen, [An-Chieh Cheng](https://anjiecheng.github.io/), [Da-Cheng Juan](
 ## Pretrained Checkpoints
 
 ## Results
+
+## Reference
+For EWC implementation, we modified the code from https://github.com/GMvandeVen/continual-learning
+
+```
+@article{vandeven2019three,
+  title={Three scenarios for continual learning},
+  author={van de Ven, Gido M and Tolias, Andreas S},
+  journal={arXiv preprint arXiv:1904.07734},
+  year={2019}
+}
+```
+```
+@article{vandeven2018generative,
+  title={Generative replay with feedback connections as a general strategy for continual learning},
+  author={van de Ven, Gido M and Tolias, Andreas S},
+  journal={arXiv preprint arXiv:1809.10635},
+  year={2018}
+}
+```
