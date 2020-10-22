@@ -17,7 +17,7 @@ Hung-Jen Chen, [An-Chieh Cheng](https://anjiecheng.github.io/), [Da-Cheng Juan](
 ## Results
 
 ## Reference
-For EWC implementation, we modified the code from https://github.com/GMvandeVen/continual-learning
+For EWC implementation, we modified the code from https://github.com/GMvandeVen/continual-learning .
 
 ```
 @article{vandeven2019three,

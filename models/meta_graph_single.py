@@ -13,7 +13,7 @@ import math
 from torch.nn import init, Parameter
 import copy
 import torchvision
-from models import base
+from models import base_single
 import utils
 from utils import *
 import tqdm
@@ -269,15 +269,16 @@ class ResNet18(MetaGraph):
 
         if self.detailed:
             pytorch_total_params = sum(p.numel() for p in self.parameters())
-
-            print(' [*] Total num of parameter: %.2f M' % (pytorch_total_params/1e6))
+            '''
+            For easier implementation, we duplicate the weight from the superkernel to create different options during forwarding and backwarding.
+            One may implemented it by reusing the same weight without creating dummy weights.
+            '''
+            print(' [*] Total num of parameters with dummy weights: %.2f M' % (pytorch_total_params/1e6)) 
             self.count_real_params()
-            #self._profile(input_size=32)
 
  
     def _make_layers(self, in_planes):
         layers = []
-        total_num_param = 0
         for out_planes, num_blocks, stride in self.cfg:
             strides = [stride] + [1]*(num_blocks-1)
             for stride in strides:
@@ -291,7 +292,7 @@ class ResNet18(MetaGraph):
         return nn.Sequential(*layers)
 
     def _make_action(self, inp, oup, stride):
-        action = base.GroupBasicBlock(inp, oup, stride, 7, self.num_of_actions, self.num_of_blocks, groups=4)
+        action = base_single.GroupBasicBlock(inp, oup, stride, 7, self.num_of_actions, self.num_of_blocks, groups=4)
         return action
         
 class ResNet18_64(MetaGraph):
@@ -315,9 +316,12 @@ class ResNet18_64(MetaGraph):
         self.linear = nn.Linear(512, num_classes)
 
         if self.detailed:
+            '''
+            For easier implementation, we duplicate the weight from the superkernel to create different options during forwarding and backwarding.
+            One may implemented it by reusing the same weight without creating dummy weights.
+            '''
             pytorch_total_params = sum(p.numel() for p in self.parameters())
-
-            print(' [*] Total num of parameter: %.2f M' % (pytorch_total_params/1e6))
+            print(' [*] Total num of parameters with dummy weights: %.2f M' % (pytorch_total_params/1e6))
             self.count_real_params()
 
     def _make_layers(self, in_planes):
@@ -334,6 +338,6 @@ class ResNet18_64(MetaGraph):
         return nn.Sequential(*layers)
 
     def _make_action(self, inp, oup, stride):
-        action = base.GroupBasicBlock(inp, oup, stride, 7, self.num_of_actions, self.num_of_blocks, groups=4)
+        action = base_single.GroupBasicBlock(inp, oup, stride, 7, self.num_of_actions, self.num_of_blocks, groups=4)
 
         return action

@@ -4,5 +4,7 @@
 *.log
 *.py
 models/*.py
+data/
+result/
 
 __pycache__
