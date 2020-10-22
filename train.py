@@ -21,7 +21,7 @@ import random
 import warnings
 warnings.filterwarnings("ignore")
 
-parser = argparse.ArgumentParser(description='InstaNas Search Stage')
+parser = argparse.ArgumentParser(description='InstAParam')
 parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')
 parser.add_argument('--net_lr', type=float, default=None, help='learning rate for net, use `args.lr` if not set')
 parser.add_argument('--beta', type=float, default=0.8, help='entropy multiplier')
