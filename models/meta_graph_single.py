@@ -36,8 +36,11 @@ def arch_is_picked(n, policy):
         return True
 
 
-class InstaNas(nn.Module):
-    
+class MetaGraph(nn.Module):
+    '''
+    For EWC related code, we modified the code from https://github.com/GMvandeVen/continual-learning
+    '''
+
     def __init__(self):
         super().__init__()
         # -SI:
@@ -171,7 +174,7 @@ class InstaNas(nn.Module):
             #return torch.tensor(0., device=self._device())
             return Variable(torch.tensor(0.)).cuda()
 
-    #------------------InstaNAS-----------------------
+    #------------------MetaGraph-----------------------
     def forward(self, x, policy, drop_path_prob=0):
 
         x = F.relu(self.norm1(self.conv1(x)))
@@ -244,7 +247,7 @@ class InstaNas(nn.Module):
 
 
 
-class ResNet18(InstaNas):
+class ResNet18(MetaGraph):
     # out_planes, num_blocks, stride
     cfg = [
            (64, 2, 1),
@@ -315,7 +318,7 @@ class ResNet18(InstaNas):
         '''
         return action
         
-class ResNet18_64(InstaNas):
+class ResNet18_64(MetaGraph):
     # out_planes, num_blocks, stride
     cfg = [
            (64, 2, 1),

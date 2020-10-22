@@ -122,31 +122,31 @@ def cutout(mask_size, p, cutout_inside=False, mask_color=(0, 0, 0)):
 
 def get_model(model, dset_name, detailed=True):
 
-    from models import controller, base, instanas, instanas_single
+    from models import controller, base, meta_graph, meta_graph_single
 
     if model == 'InstAParam':
         if dset_name == 'C10' or dset_name == 'Fuzzy-C10':
-            instanet = instanas.ResNet18(num_classes=10, detailed=detailed)
+            instanet = meta_graph.ResNet18(num_classes=10, detailed=detailed)
             agent = controller.Policy32([1, 1, 1], num_blocks=8, num_of_actions=5)
         elif dset_name == 'C100':
-            instanet = instanas.ResNet18(num_classes=100,detailed=detailed)
+            instanet = meta_graph.ResNet18(num_classes=100,detailed=detailed)
             agent = controller.Policy32([1, 1, 1], num_blocks=8, num_of_actions=5)
 
         elif dset_name == 'Tiny':
-            instanet = instanas.ResNet18_64(num_classes=200, detailed=detailed)
+            instanet = meta_graph.ResNet18_64(num_classes=200, detailed=detailed)
             agent = controller.Policy224([1,1,1,1], num_blocks=8, num_of_actions=5)
         else:
             raise NotImplementedError(' [*] Unkown model.')
     elif model == 'InstAParam-single':
         if dset_name == 'C10' or dset_name == 'Fuzzy-C10':
-            instanet = instanas_single.ResNet18(num_classes=10, detailed=detailed)
+            instanet = meta_graph_single.ResNet18(num_classes=10, detailed=detailed)
             agent = controller.Policy32([1, 1, 1], num_blocks=8, num_of_actions=4)
         elif dset_name == 'C100':
-            instanet = instanas_single.ResNet18(num_classes=100,detailed=detailed)
+            instanet = meta_graph_single.ResNet18(num_classes=100,detailed=detailed)
             agent = controller.Policy32([1, 1, 1], num_blocks=8, num_of_actions=4)
 
         elif dset_name == 'Tiny':
-            instanet = instanas_single.ResNet18_64(num_classes=200, detailed=detailed)
+            instanet = meta_graph_single.ResNet18_64(num_classes=200, detailed=detailed)
             agent = controller.Policy224([1,1,1,1], num_blocks=8, num_of_actions=4)
     else:
         raise NotImplementedError(' [*] Unkown model.')

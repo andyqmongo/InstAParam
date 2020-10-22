@@ -28,27 +28,23 @@ def arch_is_picked(n, policy):
         action = int(n_split[2])
         
         if policy.shape[0] == 1:
-            #print('{} policy_shape[0]==1'.format(n))
             return policy[0][num_layer][action].item() > 0.
         else:
             #print(policy.shape)
             tmp = torch.mean(policy, 0)
-            #print(tmp)
-            #for i in range(policy.shape[0]):
             return tmp[num_layer][action].item() > 0.
     else:
         return True
 
 
-class InstaNas(nn.Module):
-    
+class MetaGraph(nn.Module):
+    '''
+    For EWC related code, we modified the code from https://github.com/GMvandeVen/continual-learning
+    '''
     def __init__(self):
         super().__init__()
-        # -SI:
-        self.si_c = 0           #-> hyperparam: how strong to weigh SI-loss ("regularisation strength")
-        self.epsilon = 0.1      #-> dampening parameter: bounds 'omega' when squared parameter-change goes to 0
 
-        # -EWC:
+        # -EWC specific parameters:
         self.gamma = 1.         #-> hyperparam (online EWC): decay-term for old tasks' contribution to quadratic term
         self.online = True      #-> "online" (=single quadratic term) or "offline" (=quadratic term per task) EWC
         self.fisher_n = None    #-> sample size for estimating FI-matrix (if "None", full pass over dataset)
@@ -89,19 +85,11 @@ class InstaNas(nn.Module):
         if True:
             x = inputs
             y = targets
-            # break from for-loop if max number of samples has been reached
-            #if self.fisher_n is not None:
-            #    if index >= self.fisher_n:
-            #        break
             # run forward pass of model
-            #x = x.to(self._device())
-            #x = Variable(x).cuda()
-            #policy = Variable(policies).cuda()
             if allowed_classes is None:
                 output, _ = self.forward(x, policy) 
             else: 
                 out, _ = self.forward(x, policy)
-                #output =  out[:, allowed_classes]
                 output = out * Variable(torch.tensor(mask)).cuda(non_blocking=True)
 
             if self.emp_FI:
@@ -163,8 +151,6 @@ class InstaNas(nn.Module):
             
             # If "offline EWC", loop over all previous tasks (if "online EWC", [EWC_task_count]=1 so only 1 iteration)
             for task in range(1, self.EWC_task_count+1):
-                #print('---------')
-                #print(policies)
                 for n, p in self.named_parameters():
                     if p.requires_grad :#and arch_is_picked(n, policies):
                         # Retrieve stored mode (MAP estimate) and precision (Fisher Information matrix)
@@ -184,14 +170,12 @@ class InstaNas(nn.Module):
             #return torch.tensor(0., device=self._device())
             return Variable(torch.tensor(0.)).cuda()
 
-    #------------------InstaNAS-----------------------
+    #------------------MetaGraph-----------------------
     def forward(self, x, policy, drop_path_prob=0):
 
         x = F.relu(self.bn1(self.conv1(x)))
         t = 0
         lat = Variable(torch.zeros(x.size(0)), requires_grad=False).cuda().float()
-        # flops = Variable(torch.zeros(x.size(0)), requires_grad=False).cuda().float()
-        # logits_aux = None
 
         for out_planes, num_blocks, stride in self.cfg:
             for idx in range(num_blocks):
@@ -229,24 +213,20 @@ class InstaNas(nn.Module):
 
                 t += 1
 
-                # if t == 10:  + 
-                #     logits_aux = x
 
-        #x = F.relu(self.bn2(self.conv2(x)))
         x = F.relu(x)
         if self.dset_name == 'Tiny':
             x = F.avg_pool2d(x, 7)
         else:
             x = F.avg_pool2d(x, 4)
         x = x.view(x.size(0), -1)
-        #print(x)
-        x = self.linear(x)
-        #flops += conv1 + conv2 + linear + agent_flops
 
-        return x, lat #, None #logits_aux #, flops
+        x = self.linear(x)
+
+        return x, lat
 
         
-class ResNet18(InstaNas):
+class ResNet18(MetaGraph):
     # out_planes, num_blocks, stride
     cfg = [
            (64, 2, 1),
@@ -274,11 +254,6 @@ class ResNet18(InstaNas):
  
     def _make_layers(self, in_planes):
         layers = []
-        total_num_param = 0
-        #block = [self._make_action(in_planes, 64, 1, i, firstlayer=True) for i in range(self.num_of_actions)]
-        #block = nn.ModuleList(block)
-        #layers.append(block)
-        #in_planes = 64
         for out_planes, num_blocks, stride in self.cfg:
             strides = [stride] + [1]*(num_blocks-1)
             for stride in strides:
@@ -298,16 +273,14 @@ class ResNet18(InstaNas):
         elif id == 2:  # BasicBlock 8x8 g8
             action = base.GroupBasicBlock(inp, oup, stride, 3, self.num_of_actions, self.num_of_blocks, groups=8, onelayer=firstlayer)
         elif id == 3:
-            #action = base.GroupBasicBlock(inp, oup, stride, 5, self.num_of_actions, self.num_of_blocks, groups=8, onelayer=firstlayer)
             action = base.BasicBlock(inp, oup, stride, 3, self.num_of_actions, self.num_of_blocks)
         elif id == 4:
-            #action = base.GroupBasicBlock(inp, oup, stride, 5, self.num_of_actions, self.num_of_blocks, groups=16, onelayer=firstlayer)
             action = base.GroupBasicBlock(inp, oup, stride, 3, self.num_of_actions, self.num_of_blocks, groups=2)
         else:
             raise ValueError(" [*] No such action index")
         return action
         
-class ResNet18_64(InstaNas):
+class ResNet18_64(MetaGraph):
     # out_planes, num_blocks, stride
     cfg = [
            (64, 2, 1),
@@ -336,11 +309,7 @@ class ResNet18_64(InstaNas):
  
     def _make_layers(self, in_planes):
         layers = []
-        total_num_param = 0
-        #block = [self._make_action(in_planes, 64, 1, i, firstlayer=True) for i in range(self.num_of_actions)]
-        #block = nn.ModuleList(block)
-        #layers.append(block)
-        #in_planes = 64
+
         for out_planes, num_blocks, stride in self.cfg:
             strides = [stride] + [1]*(num_blocks-1)
             for stride in strides:
