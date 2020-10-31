@@ -26,13 +26,11 @@ parser = argparse.ArgumentParser(description='InstaNas Search Stage')
 parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')
 parser.add_argument('--net_lr', type=float, default=None, help='learning rate for net, use `args.lr` if not set')
 parser.add_argument('--model', default='InstAParam-single', choices=['InstAParam', 'InstAParam-single'])
-parser.add_argument('--dset_name', default=None, required=True, choices=['C10', 'C100', 'Tiny', 'Fuzzy-C10'])
-parser.add_argument('--data_dir', default='../data/', help='data directory')
-parser.add_argument('--cv_dir', default='cv/tmp/', help='checkpoint directory (models and logs are saved here)')
+parser.add_argument('--dset_name', default=None, required=True, choices=['C100', 'Tiny'])
+parser.add_argument('--data_dir', default='./data/', help='data directory')
+parser.add_argument('--cv_dir', default='./result', help='checkpoint directory (models and logs are saved here)')
 parser.add_argument('--batch_size', type=int, default=200, help='batch size')
 parser.add_argument('--task', type=int, default=0, help="task to pre-train")
-parser.add_argument('--scenario', type=str, default='task', choices=['task', 'domain', 'class'])
-
 parser.add_argument('--epochs', type=int, default=100)
 parser.add_argument('--net_optimizer', default='sgd', choices=['adam', 'sgd'])
 parser.add_argument('--wd', type=float, default=1.0, help='weight decay')
@@ -136,7 +134,7 @@ def train(trainloader, testloader, task):
 
 
 
-instanet, _ = utils.get_model(args.model)
+instanet, _ = utils.get_model(args.model, args.dset_name)
 instanet.cuda()
 
 if args.net_lr is None:
