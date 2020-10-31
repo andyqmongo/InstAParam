@@ -47,7 +47,7 @@ if not os.path.exists('./{}/models'.format(args.cv_dir)):
     shutil.copytree('./models', './{}/models'.format(args.cv_dir))
 
 
-if args.dset_name == 'C10':
+if args.dset_name == 'C10' or 'Fuzzy-C10':
     task_length = 2
     num_tasks = 5
 elif args.dset_name == 'C100':
@@ -69,20 +69,20 @@ def train(trainloader, testloader, task):
         net_losses = []
         #Training 
         for idx, (inputs, targets) in tqdm.tqdm(enumerate(trainloader), total=len(trainloader)):
-            instanet.train()
+            meta_graph.train()
             if args.model == 'InstAParam-single':
-                instanet.assign_mask()
+                meta_graph.assign_mask()
             inputs, targets = Variable(inputs).cuda(non_blocking=True), Variable(targets).cuda(non_blocking=True)
 
             if epoch > args.epochs//2:
                 drop_rate = 1-(0.5/(args.epochs//2))*(epoch-args.epochs//2)
-                policy_shape = (inputs.shape[0], instanet.num_of_blocks, instanet.num_of_actions)
+                policy_shape = (inputs.shape[0], meta_graph.num_of_blocks, meta_graph.num_of_actions)
                 policy = Variable(torch.from_numpy(np.random.binomial(1, drop_rate, policy_shape))).long().cuda()
             else:
-                policy = Variable(torch.ones(inputs.shape[0], instanet.num_of_blocks, instanet.num_of_actions)).cuda()
+                policy = Variable(torch.ones(inputs.shape[0], meta_graph.num_of_blocks, meta_graph.num_of_actions)).cuda()
 
             
-            pm, _ = instanet.forward(inputs, policy)
+            pm, _ = meta_graph.forward(inputs, policy)
             pm[:, (task+1)*task_length:] = 0.0
 
             net_loss = F.cross_entropy(pm, targets)
@@ -97,21 +97,21 @@ def train(trainloader, testloader, task):
             match = (pred_idx == targets).data.float()
             matches.append(match)
             if args.model == 'InstAParam-single':
-                instanet.store_back()
+                meta_graph.store_back()
 
 
         # Check train acc with assign_mask()
         if args.model == 'InstAParam-single':
-            instanet.assign_mask()
+            meta_graph.assign_mask()
         #Testing accuracy with assign_mask()
         for idx, (inputs, targets) in tqdm.tqdm(enumerate(testloader), total=len(testloader)):
-            instanet.eval()
+            meta_graph.eval()
             with torch.no_grad():
                 inputs, targets = Variable(inputs).cuda(non_blocking=True), Variable(targets).cuda(non_blocking=True)
 
-                policy = Variable(torch.ones(inputs.shape[0], instanet.num_of_blocks, instanet.num_of_actions)).cuda()
+                policy = Variable(torch.ones(inputs.shape[0], meta_graph.num_of_blocks, meta_graph.num_of_actions)).cuda()
 
-                preds, _ = instanet.forward(inputs, policy)
+                preds, _ = meta_graph.forward(inputs, policy)
                 preds[:, (task+1)*task_length:] = 0.0
                 
                 _, pred_idx = preds.max(1)
@@ -123,23 +123,23 @@ def train(trainloader, testloader, task):
 
 
         if epoch == args.epochs // 2:
-            net_state_dict = instanet.state_dict()
+            net_state_dict = meta_graph.state_dict()
             torch.save(net_state_dict, os.path.join(args.cv_dir, 'ckpt_pretrain.t7'))
         elif epoch >= args.epochs-1:
-            net_state_dict = instanet.state_dict()
+            net_state_dict = meta_graph.state_dict()
             torch.save(net_state_dict, os.path.join(args.cv_dir, 'ckpt_pretrain_dropout.t7'))
 
 
 
-instanet, _ = utils.get_model(args.model, args.dset_name)
-instanet.cuda()
+meta_graph, _ = utils.get_model(args.model, args.dset_name)
+meta_graph.cuda()
 
 if args.net_lr is None:
     args.net_lr = args.lr
 if args.net_optimizer == 'sgd':
-    optimizer_net = optim.SGD(instanet.parameters(), lr=args.net_lr, weight_decay=args.wd)
+    optimizer_net = optim.SGD(meta_graph.parameters(), lr=args.net_lr, weight_decay=args.wd)
 elif args.net_optimizer == 'adam':
-    optimizer_net = optim.Adam(instanet.parameters(), lr=args.net_lr, weight_decay=args.wd)
+    optimizer_net = optim.Adam(meta_graph.parameters(), lr=args.net_lr, weight_decay=args.wd)
 
 from dataloader import getDataloaders
 trainLoaders, testLoaders = getDataloaders(dset_name=args.dset_name, shuffle=True, splits=['train', 'test'], 

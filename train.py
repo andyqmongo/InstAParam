@@ -59,7 +59,7 @@ if args.net_lr is None:
 if not os.path.exists(args.cv_dir):
     os.makedirs(args.cv_dir)
 
-if args.dset_name == 'C10':
+if args.dset_name == 'C10' or 'Fuzzy-C10':
     task_length = 2
     num_tasks = 5
 elif args.dset_name == 'C100':
