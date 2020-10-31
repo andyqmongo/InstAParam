@@ -119,14 +119,11 @@ def train(trainloader, testloader, task):
                 matches_te.append(match)
 
         accuracy = torch.cat(matches, 0).mean()
-
         testing_acc = torch.cat(matches_te, 0).mean()
-
 
 
         if epoch == args.epochs // 2:
             net_state_dict = instanet.state_dict()
-
             torch.save(net_state_dict, os.path.join(args.cv_dir, 'ckpt_pretrain.t7'))
         elif epoch >= args.epochs-1:
             net_state_dict = instanet.state_dict()
