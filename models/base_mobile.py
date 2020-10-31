@@ -28,40 +28,7 @@ def conv3x3(in_planes, out_planes, stride=1):
     "3x3 convolution with padding"
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride, padding=1, bias=False)
 
-class InvertedResBlock(nn.Module):
-    '''expand + depthwise + pointwise'''
-    def __init__(self, in_planes, out_planes, stride, kernel, expansion):
-        super(InvertedResBlock, self).__init__()
-        self.identity = stride == 1 and in_planes == out_planes
-        self.stride = stride
-        self.multiplier = 1.0
-        self.lat = 0
-        self.flops = 0
-        self.params = 0
 
-        planes = int(round(expansion * in_planes * self.multiplier))
-        self.conv1 = nn.Conv2d(in_planes, planes, kernel_size=1, stride=1, padding=0, bias=False)
-        self.bn1 = nn.BatchNorm2d(planes)
-        self.conv2 = nn.Conv2d(planes, planes, kernel_size=kernel, stride=stride, padding=kernel//2, groups=planes, bias=False)
-        self.bn2 = nn.BatchNorm2d(planes)
-        self.conv3 = nn.Conv2d(planes, out_planes, kernel_size=1, stride=1, padding=0, bias=False)
-        self.bn3 = nn.BatchNorm2d(out_planes)
-
-        self.shortcut = nn.Sequential()
-        if stride == 1 and in_planes != out_planes:
-            self.shortcut = nn.Sequential(
-                nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, padding=0, bias=False),
-                nn.BatchNorm2d(out_planes),
-            )
-
-    def forward(self, x):
-        out = F.relu(self.bn1(self.conv1(x)))
-        out = F.relu(self.bn2(self.conv2(out)))
-        out = self.bn3(self.conv3(out))
-        # out = out + self.shortcut(x) # if self.stride==1 else out
-        if self.identity:
-            out = out + x
-        return out
 
 class BasicBlock(nn.Module):
     expansion = 1
@@ -89,7 +56,7 @@ class BasicBlock(nn.Module):
 
         return out
 
-
+'''
 class Bottleneck(nn.Module):
     expansion = 4
 
@@ -119,6 +86,7 @@ class Bottleneck(nn.Module):
         out = F.relu(out)
 
         return out
+'''
 
 class DownsampleB(nn.Module):
 

@@ -28,44 +28,6 @@ def conv3x3(in_planes, out_planes, stride=1, groups=1):
     "3x3 convolution with padding"
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride, padding=1, bias=False, groups=groups)
 
-class InvertedResBlock(nn.Module):
-    '''expand + depthwise + pointwise'''
-    def __init__(self, in_planes, out_planes, stride, kernel, expansion):
-        super(InvertedResBlock, self).__init__()
-        self.identity = stride == 1 and in_planes == out_planes
-        self.stride = stride
-        self.multiplier = 1.0
-        self.lat = 0
-        self.flops = 0
-        self.params = 0
-
-        planes = int(round(expansion * in_planes * self.multiplier))
-        self.conv1 = nn.Conv2d(in_planes, planes, kernel_size=1, stride=1, padding=0, bias=False)
-        # self.bn1 = nn.BatchNorm2d(planes)
-        self.bn1 = CBN(lstm_size=85, emb_size=85, out_size=planes)
-        self.conv2 = nn.Conv2d(planes, planes, kernel_size=kernel, stride=stride, padding=kernel//2, groups=planes, bias=False)
-        # self.bn2 = nn.BatchNorm2d(planes)
-        self.bn2 = CBN(lstm_size=85, emb_size=85, out_size=planes)
-        self.conv3 = nn.Conv2d(planes, out_planes, kernel_size=1, stride=1, padding=0, bias=False)
-        # self.bn3 = nn.BatchNorm2d(out_planes)
-        self.bn3 = CBN(lstm_size=85, emb_size=85, out_size=out_planes)
-
-        self.shortcut = nn.Sequential()
-        if stride == 1 and in_planes != out_planes:
-            self.shortcut = nn.Sequential(
-                nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, padding=0, bias=False),
-                # nn.BatchNorm2d(out_planes),
-                CBN(lstm_size=85, emb_size=85, out_size=out_planes)
-            )
-
-    def forward(self, x, policy):
-        out = F.relu(self.bn1(self.conv1(x), policy))
-        out = F.relu(self.bn2(self.conv2(out), policy))
-        out = self.bn3(self.conv3(out), policy)
-        # out = out + self.shortcut(x) # if self.stride==1 else out
-        if self.identity:
-            out = out + x
-        return out
 
 class ResBlock(nn.Module):
     expansion = 1
@@ -151,46 +113,6 @@ class BasicBlock(nn.Module):
         return out
 
 
-class Bottleneck(nn.Module):
-    expansion = 4
-
-    def __init__(self, inplanes, planes, stride=1):
-        super(Bottleneck, self).__init__()
-        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(planes)
-        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
-        self.bn2 = nn.BatchNorm2d(planes)
-        self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
-        self.bn3 = nn.BatchNorm2d(planes * 4)
-        self.relu = nn.ReLU(inplace=True)
-
-    def forward(self, x):
-        residual = x
-
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu(out)
-
-        out = self.conv2(out)
-        out = self.bn2(out)
-        out = self.relu(out)
-
-        out = self.conv3(out)
-        out = self.bn3(out)
-        out = F.relu(out)
-
-        return out
-
-class DownsampleB(nn.Module):
-
-    def __init__(self, nIn, nOut, stride):
-        super(DownsampleB, self).__init__()
-        self.avg = nn.AvgPool2d(stride)
-        self.expand_ratio = nOut // nIn
-
-    def forward(self, x):
-        x = self.avg(x)
-        return torch.cat([x] + [x.mul(0)] * (self.expand_ratio - 1), 1)
 
 
 class SwitchableBatchNorm2d(nn.Module):
@@ -209,6 +131,7 @@ class SwitchableBatchNorm2d(nn.Module):
         y = sum(feature_map)
         return y
 
+'''
 class CBN(nn.Module):
 
     def __init__(self, lstm_size, emb_size, out_size, use_betas=True, use_gammas=True, eps=1.0e-5):
@@ -296,3 +219,4 @@ class CBN(nn.Module):
         out = torch.mul(feature_normalized, gammas_expanded) + betas_expanded
 
         return out
+'''

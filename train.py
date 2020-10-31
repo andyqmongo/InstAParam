@@ -108,7 +108,8 @@ def train_online_and_test(trainLoaders, testLoaders):
             matches = []
             policies = []
             print('task 0, load pretrained for meta-graph')
-            meta_graph.assign_mask()
+            if args.model == 'InstAParam-single':
+                meta_graph.assign_mask()
             meta_graph.eval()
             policy_zero = Variable(torch.zeros(args.batch_size, meta_graph.num_of_blocks, meta_graph.num_of_actions)).cpu()
             for _, (inputs, targets) in tqdm.tqdm(enumerate(testLoaders[0]), total=len(testLoaders[0])):
@@ -147,7 +148,8 @@ def train_online_and_test(trainLoaders, testLoaders):
                 for _, (inputs, targets) in tqdm.tqdm(enumerate(trainLoaders[0]), total=len(trainLoaders[0])):
                     inputs, targets = Variable(inputs).cuda(non_blocking=True), Variable(targets).cuda(non_blocking=True)
                     meta_graph.train()
-                    meta_graph.assign_mask()
+                    if args.model == 'InstAParam-single':
+                        meta_graph.assign_mask()
 
                     if epoch >= args.pretrain_epochs//2:
                         policy_shape = (inputs.shape[0], meta_graph.num_of_blocks, meta_graph.num_of_actions)
@@ -163,7 +165,8 @@ def train_online_and_test(trainLoaders, testLoaders):
                     optimizer_net.zero_grad()
                     net_loss.backward()
                     optimizer_net.step()
-                    meta_graph.store_back()
+                    if args.model == 'InstAParam-single':
+                        meta_graph.store_back()
 
             print('Pretrain done')
             policy_zero = Variable(torch.zeros(args.batch_size, meta_graph.num_of_blocks, meta_graph.num_of_actions)).cpu()
@@ -192,7 +195,8 @@ def train_online_and_test(trainLoaders, testLoaders):
         for _, (inputs, targets) in tqdm.tqdm(enumerate(trainLoaders[task]), total=len(trainLoaders[task])):
             iteration += 1
             for iter_ in range(args.iter_per_batch):
-                meta_graph.assign_mask()
+                if args.model == 'InstAParam-single':
+                    meta_graph.assign_mask()
 
                 inputs, targets = Variable(inputs).cuda(non_blocking=True), Variable(targets).cuda(non_blocking=True)
                 probs, _ = controller(inputs)
@@ -294,7 +298,8 @@ def train_online_and_test(trainLoaders, testLoaders):
                 net_loss.backward()
                 optimizer_net.step()
                 #---------------------------------------------------------------------#
-                meta_graph.store_back()
+                if args.model == 'InstAParam-single':
+                    meta_graph.store_back()
 
             if args.ewc_lambda > 0:
                 allowed_classes = range(task*task_length, (task+1)*task_length)  
@@ -346,7 +351,8 @@ def test(testLoaders, repro_oneshot=False, test_task=-1, cur_task=-1):
         ckpt_net = torch.load('{}/meta_grpah_{}.t7'.format(args.cv_dir, cur_task))
         meta_graph_.load_state_dict(ckpt_net, strict=False)
         meta_graph_.eval().cuda()
-        meta_graph_.assign_mask()
+        if args.model == 'InstAParam-single':
+            meta_graph_.assign_mask()
     else:
         raise NotImplementedError("Wrong Cur task for testing")
     for task in loop_through_task:
