@@ -32,7 +32,7 @@ parser.add_argument('--mu', default=0.5, type=float, help='threshold for picking
 
 args = parser.parse_args()
 
-if args.dset_name == 'C10' or 'Fuzzy-C10':
+if args.dset_name == 'C10' or args.dset_name == 'Fuzzy-C10':
     task_length = 2
     num_tasks = 5
 elif args.dset_name == 'C100':
@@ -42,7 +42,7 @@ elif args.dset_name == 'Tiny':
     task_length = 20
     num_tasks = 10
 
-assert args.task < num_tasks
+
 
 def test(testloader, test_task, agent, meta_graph):
 
@@ -89,6 +89,10 @@ meta_graph, agent = utils.get_model(args.model, args.dset_name)
 meta_graph.cuda()
 agent.cuda()
 
+accs = []
 for t in range(num_tasks):
     for tt in range(t):
         acc = test(testLoaders[tt], tt, agent, meta_graph)
+        accs.append(acc)
+
+print(accs)

@@ -1,7 +1,7 @@
 import torch
 import torchvision.datasets as dset
 import torchvision.transforms as transforms
-
+import random
 import numpy as np
 
 def cutout(mask_size, p, cutout_inside=False, mask_color=(0, 0, 0)):
@@ -38,40 +38,58 @@ def cutout(mask_size, p, cutout_inside=False, mask_color=(0, 0, 0)):
 
     return _cutout
 
-def getDataloaders_CL(data_set, dataset_name, train, shuffle, subclass=None, num_class=5, batch_size=64):
+
+def dataset_to_loader_fuzzy(dataset, dset_name, num_tasks, isTrain, batch_size, shuffle, num_workers, ratio=0.2):
     class_length = -1
-    if dataset_name =="C10":
-        class_length = 5000 if train else 1000
-    elif dataset_name == 'C100':
-        class_length = 500 if train else 100
-    elif dataset_name=="Tiny":
-        class_length = 6000 if train else 1000
+    task_length = -1
+    if dset_name.find("C100") >= 0:
+        class_length = 500 if isTrain else 100
+        task_length = int(100 / num_tasks) * class_length
+    elif dset_name.find("C10") >= 0:
+        class_length = 5000 if isTrain else 1000
+        task_length = int(10 / num_tasks) * class_length
+    elif dset_name.find("Tiny") >= 0:
+        class_length = 500 if isTrain else 100
+        task_length = int(200 / num_tasks) * class_length
+    else:
+        raise NotImplementedError
     data_loaders = []
 
-    for s in subclass:
-        dataset_prime = None
-        count = 0
-        for i in s:
-            if not dataset_prime:
-                dataset_prime = (data_set[i*class_length:(i+1)*class_length])
-            else:
-                dataset_prime = torch.utils.data.ConcatDataset((dataset_prime, (data_set[i*class_length:(i+1)*class_length])))
-            count += 1
+    sub_data = {}
+    for i in range(num_tasks):
+        sub_data[i] = []
+    
+    for i in range(num_tasks):
+        sub_data[i] += dataset[i*task_length:(i+1)*task_length]
+    
+    #Fuzzy Shuffle
+    left_pool = []
+    n = int(ratio*len(sub_data[0]))
+    l = int(len(sub_data[0])) - n
+    for i in range(num_tasks):
+        random.shuffle(sub_data[i])
+        left_pool += sub_data[i][-n:]
+        sub_data[i] = sub_data[i][:l]
+    random.shuffle(left_pool)
+    for i in range(num_tasks):
+        sub_data[i] += left_pool[i*n:(i+1)*n]
 
-        data_loader = torch.utils.data.DataLoader(dataset_prime, batch_size=batch_size, shuffle=shuffle, num_workers=0, drop_last=True,pin_memory=True)
+    #create dataloader
+    for i in range(num_tasks):
+        data_loader = torch.utils.data.DataLoader(sub_data[i], batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, drop_last=True)
         data_loaders.append(data_loader)
     return data_loaders
 
 def dataset_to_loader(dataset, dset_name, num_tasks, isTrain, batch_size, shuffle, num_workers):
     class_length = -1
     task_length = -1
-    if dset_name =="C10":
-        class_length = 5000 if isTrain else 1000
-        task_length = int(10 / num_tasks) * class_length
-    elif dset_name == 'C100':
+    if dset_name.find("C100") >= 0:
         class_length = 500 if isTrain else 100
         task_length = int(100 / num_tasks) * class_length
-    elif dset_name=='Tiny':
+    elif dset_name.find("C10") >= 0:
+        class_length = 5000 if isTrain else 1000
+        task_length = int(10 / num_tasks) * class_length
+    elif dset_name.find("Tiny") >= 0:
         class_length = 500 if isTrain else 100
         task_length = int(200 / num_tasks) * class_length
     else:
@@ -112,13 +130,18 @@ def getDataloaders(dset_name, shuffle=True, splits=['train', 'test'],
             train_set = d_func(data_root, train=True, transform=train_compose, download=True)
             train_set = sorted(train_set, key=lambda s:s[1])
             
-            train_loaders = dataset_to_loader(train_set, dset_name=dset_name, num_tasks=num_tasks, isTrain=True, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
+            if dset_name.find('Fuzzy') >= 0:
+                train_loaders = dataset_to_loader_fuzzy(train_set, dset_name=dset_name, num_tasks=num_tasks, isTrain=True, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, ratio=0.2)
+            else:
+                train_loaders = dataset_to_loader(train_set, dset_name=dset_name, num_tasks=num_tasks, isTrain=True, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
         if 'test' in splits:
             test_set = d_func(data_root, train=False, transform=test_compose)
             test_set = sorted(test_set, key=lambda s:s[1])
-
-            test_loaders = dataset_to_loader(test_set, dset_name=dset_name, num_tasks=num_tasks, isTrain=False, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
-
+            
+            if dset_name.find('Fuzzy') >= 0:
+                test_loaders = dataset_to_loader_fuzzy(test_set, dset_name=dset_name, num_tasks=num_tasks, isTrain=False, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, ratio=0.2)
+            else:
+                test_loaders = dataset_to_loader(test_set, dset_name=dset_name, num_tasks=num_tasks, isTrain=False, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
 
     elif dset_name.find('Tiny') >= 0:
         pass

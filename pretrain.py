@@ -13,6 +13,7 @@ torch.set_num_threads(1)
 
 import warnings
 warnings.filterwarnings("ignore")
+import wandb
 
 """
 Set seed
@@ -24,7 +25,6 @@ torch.cuda.manual_seed_all(9487)
 
 parser = argparse.ArgumentParser(description='InstaNas Search Stage')
 parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')
-parser.add_argument('--net_lr', type=float, default=None, help='learning rate for net, use `args.lr` if not set')
 parser.add_argument('--model', default='InstAParam-single', choices=['InstAParam', 'InstAParam-single'])
 parser.add_argument('--dset_name', default=None, required=True, choices=['C100', 'Tiny'])
 parser.add_argument('--data_dir', default='./data/', help='data directory')
@@ -33,19 +33,24 @@ parser.add_argument('--batch_size', type=int, default=200, help='batch size')
 parser.add_argument('--task', type=int, default=0, help="task to pre-train")
 parser.add_argument('--epochs', type=int, default=100)
 parser.add_argument('--net_optimizer', default='sgd', choices=['adam', 'sgd'])
-parser.add_argument('--wd', type=float, default=1.0, help='weight decay')
+parser.add_argument('--wd', type=float, default=0.0, help='weight decay')
 
 args = parser.parse_args()
 
 
+hyperparam = 'lr_{:.6f}_b_{}_e_{}_{}'.format(args.lr, args.batch_size, args.epochs, args.net_optimizer)
+args.cv_dir = os.path.join(args.cv_dir, hyperparam)
+
 if not os.path.exists(args.cv_dir):
     os.makedirs(args.cv_dir)
-utils.save_args(__file__, args)
 
 if not os.path.exists('./{}/models'.format(args.cv_dir)):
     import shutil
     shutil.copytree('./models', './{}/models'.format(args.cv_dir))
 
+utils.save_args(__file__, args)
+
+wandb.init(project='NIPS_InstAParam-single-{}-pretrain'.format(args.dset_name), config=args, name=hyperparam)
 
 if args.dset_name == 'C10' or 'Fuzzy-C10':
     task_length = 2
@@ -128,18 +133,20 @@ def train(trainloader, testloader, task):
         elif epoch >= args.epochs-1:
             net_state_dict = meta_graph.state_dict()
             torch.save(net_state_dict, os.path.join(args.cv_dir, 'ckpt_pretrain_dropout.t7'))
-
+        wandb.log({
+            'train acc': accuracy,
+            'test acc': testing_acc
+        })
 
 
 meta_graph, _ = utils.get_model(args.model, args.dset_name)
 meta_graph.cuda()
 
-if args.net_lr is None:
-    args.net_lr = args.lr
+
 if args.net_optimizer == 'sgd':
-    optimizer_net = optim.SGD(meta_graph.parameters(), lr=args.net_lr, weight_decay=args.wd)
+    optimizer_net = optim.SGD(meta_graph.parameters(), lr=args.lr, weight_decay=args.wd)
 elif args.net_optimizer == 'adam':
-    optimizer_net = optim.Adam(meta_graph.parameters(), lr=args.net_lr, weight_decay=args.wd)
+    optimizer_net = optim.Adam(meta_graph.parameters(), lr=args.lr, weight_decay=args.wd)
 
 from dataloader import getDataloaders
 trainLoaders, testLoaders = getDataloaders(dset_name=args.dset_name, shuffle=True, splits=['train', 'test'], 

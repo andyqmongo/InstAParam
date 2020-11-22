@@ -21,12 +21,14 @@ import random
 import warnings
 warnings.filterwarnings("ignore")
 
+import wandb
+
 parser = argparse.ArgumentParser(description='InstAParam')
 parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')
 parser.add_argument('--net_lr', type=float, default=None, help='learning rate for net, use `args.lr` if not set')
 parser.add_argument('--beta', type=float, default=0.8, help='entropy multiplier')
 parser.add_argument('--model', default='InstAParam-single', choices=['InstAParam', 'InstAParam-single'])
-parser.add_argument('--dset_name', default=None, required=True, choices=['C10', 'C100', 'Tiny', 'Fuzzy-C10'])
+parser.add_argument('--dset_name', default='C10', required=False, choices=['C10', 'C100', 'Tiny', 'Fuzzy-C10'])
 parser.add_argument('--data_dir', default='./data', help='data directory')
 parser.add_argument('--load_graph', default=None, help='checkpoint to load meta-graph from')
 parser.add_argument('--load_controller', default=None, help='checkpoint to load controller from')
@@ -45,9 +47,10 @@ parser.add_argument('--net_optimizer', default='sgd', choices=['adam', 'sgd', 's
 parser.add_argument('--k', default=10., type=float, help='value to reshape sigmoid function')
 parser.add_argument('--shift', default=0.5, type=float, help='the amount of sigmoid function shift')
 parser.add_argument('--mu', type=float, default=0.5, help='thresholds to determine picked or not')
-parser.add_argument('--wd', type=float, default=1.0, help='weight decay')
+parser.add_argument('--wd', type=float, default=0.0, help='weight decay')
 
 args = parser.parse_args()
+
 
 np.set_printoptions(suppress=True)
 tanh = torch.nn.Tanh()
@@ -59,15 +62,29 @@ if args.net_lr is None:
 if not os.path.exists(args.cv_dir):
     os.makedirs(args.cv_dir)
 
-if args.dset_name == 'C10' or 'Fuzzy-C10':
-    task_length = 2
-    num_tasks = 5
-elif args.dset_name == 'C100':
+hyperparam = 'lr_{:.6f}_netlr{:.6f}_iter{}_{}_mu{}_gamma{:.4f}_ewc{}'.format(
+    args.lr, args.net_lr, args.iter_per_batch, args.net_optimizer, args.mu, args.gamma, args.ewc_lambda)
+save_dir = os.path.join(args.cv_dir, hyperparam)
+if not os.path.exists(save_dir):
+    os.makedirs(save_dir)
+
+wandb.init(project='NIPS_{}_{}'.format(args.model, args.dset_name), config=args, name=hyperparam)
+args.cv_dir = save_dir
+
+if args.dset_name.find('C100') >= 0:
     task_length = 10
     num_tasks = 10
-elif args.dset_name == 'Tiny':
+    num_classes = task_length * num_tasks
+elif args.dset_name.find('C10') >= 0:
+    task_length = 2
+    num_tasks = 5
+    num_classes = task_length * num_tasks
+elif args.dset_name.find('Tiny') >= 0:
     task_length = 20
     num_tasks = 10
+    num_classes = task_length * num_tasks
+else:
+    raise NotImplementedError
 
 def get_reward(preds, targets, policy, elasped):
 
@@ -176,16 +193,8 @@ def train_online_and_test(trainLoaders, testLoaders):
         if task > 1 or (task > 0 and args.dset_name=='C10'):
             #Calculate history matrix H to encourage exploration 
             history_policies = Variable(torch.sum(torch.stack(policies_real_sum[:task]), dim=0, keepdim=True)[0]).cuda(non_blocking=True)
-            #print(history_policies)
-            #df = pd.DataFrame(history_policies.cpu().numpy())
-            #df.to_excel('{}/history_policies_{}.xlsx'.format(args.cv_dir, task))
             sqrt_hist = Variable(torch.sqrt(history_policies)).float().cuda()
-            
             policies_reg = sigmoid( args.k*(sqrt_hist / sqrt_hist.max() - args.shift) ) * args.gamma
-            #print('----------policy reg---------------')
-            #print(policies_reg)
-            #df = pd.DataFrame(policies_reg.cpu().numpy())
-            #df.to_excel('{}/policies_reg_task{}.xlsx'.format(args.cv_dir, task))
         else:
             policies_reg = 0
         
@@ -194,7 +203,7 @@ def train_online_and_test(trainLoaders, testLoaders):
 
         for _, (inputs, targets) in tqdm.tqdm(enumerate(trainLoaders[task]), total=len(trainLoaders[task])):
             iteration += 1
-            for iter_ in range(args.iter_per_batch):
+            for _ in range(args.iter_per_batch):
                 if args.model == 'InstAParam-single':
                     meta_graph.assign_mask()
 
@@ -224,8 +233,7 @@ def train_online_and_test(trainLoaders, testLoaders):
                 preds_sample, lat = meta_graph.forward(v_inputs, policy)
                 
                 #mask for incremental task learning
-                mask = [0.] * (num_tasks * task_length)
-
+                mask = [0.] * num_classes
 
                 curSubclass = range(task*task_length, (task+1)*task_length)
 
@@ -233,6 +241,7 @@ def train_online_and_test(trainLoaders, testLoaders):
                     mask[sub] = 1.0
 
                 preds_map = preds_map * Variable(torch.tensor(mask)).cuda(non_blocking=True)
+                
                 preds_sample = preds_sample * Variable(torch.tensor(mask)).cuda(non_blocking=True)
 
 
@@ -266,7 +275,7 @@ def train_online_and_test(trainLoaders, testLoaders):
                 pm, _ = meta_graph.forward(v_inputs, perm_policy)
 
 
-                mask = [0.] * (num_tasks * task_length)
+                mask = [0.] * num_classes
 
                 curSubclass = range(task*task_length, (task+1)*task_length)
                 for sub in curSubclass:
@@ -322,27 +331,56 @@ def train_online_and_test(trainLoaders, testLoaders):
                 utils.save_real_param(net_state_dict, os.path.join(args.cv_dir, 'meta_grpah_{}.t7'.format(task)))
             else:
                 torch.save(net_state_dict, os.path.join(args.cv_dir, 'meta_grpah_{}.t7'.format(task)))
+            #------ wandb --------
+            if iteration%20 == 0:
+                test_avg_acc, test_accs = test(testLoaders, cur_task=task)    
+                if args.dset_name == 'C10' or args.dset_name=='Fuzzy-C10':
+                    wandb.log({
+                        'loss': np.mean(entropy_loss.detach().cpu().numpy()),
+                        'ewc loss': np.mean(ewc_loss.detach().cpu().numpy()),
+                        'online train acc': torch.cat(matches, 0).mean().cpu().numpy(),
+                        #'cur train acc': train_acc,
+                        'avg test acc':test_avg_acc,
+                        'test acc 0':test_accs[0],
+                        'test acc 1':test_accs[1],
+                        'test acc 2':test_accs[2],
+                        'test acc 3':test_accs[3],
+                        'test acc 4':test_accs[4]
+                    },step=iteration)
+                else:
+                    wandb.log({
+                        'loss': np.mean(entropy_loss.detach().cpu().numpy()),
+                        'ewc loss': np.mean(ewc_loss.detach().cpu().numpy()),
+                        'online train acc': torch.cat(matches, 0).mean().cpu().numpy(),
+                        #'cur train acc': train_acc,
+                        'avg test acc':test_avg_acc,
+                        'test acc 0':test_accs[0],
+                        'test acc 1':test_accs[1],
+                        'test acc 2':test_accs[2],
+                        'test acc 3':test_accs[3],
+                        'test acc 4':test_accs[4],
+                        'test acc 5':test_accs[5],
+                        'test acc 6':test_accs[6],
+                        'test acc 7':test_accs[7],
+                        'test acc 8':test_accs[8],
+                        'test acc 9':test_accs[9],
+                    },step=iteration)
+
+
+            #-------
+
 
 
             if math.isnan(np.mean(entropy_loss.detach().cpu().numpy())) or math.isnan(np.mean(ewc_loss.detach().cpu().numpy())):
                 print('loss is nan')
                 sys.exit()
 
-        #----
-
         policies_real_sum.append(torch.sum(torch.sum(torch.stack(policies_), dim=0, keepdim=True)[0], dim=0, keepdim=True)[0])
-        #print('-- policies_ mean ---')
-        #cur_prm = policies_real_sum[task].cpu().numpy()
-        #print(cur_prm)
-
-        #df = pd.DataFrame(cur_prm)
-        #df.to_excel('{}/policies_real_sum_task{}.xlsx'.format(args.cv_dir, task))
-
 
 def test(testLoaders, repro_oneshot=False, test_task=-1, cur_task=-1):
     assert test_task < num_tasks
     accs = np.zeros(num_tasks)
-    meta_graph_, controller_ = utils.get_model(args.model, detailed=False)
+    meta_graph_, controller_ = utils.get_model(args.model, args.dset_name, detailed=False)
 
     loop_through_task = list(range(num_tasks)) if test_task < 0 else [test_task]
 
@@ -383,7 +421,7 @@ def test(testLoaders, repro_oneshot=False, test_task=-1, cur_task=-1):
 
                 curSubclass = range(task*task_length, (task+1)*task_length)
 
-                mask = [0.] * (num_tasks * task_length)
+                mask = [0.] * num_classes
                 for sub in curSubclass:
                     mask[sub] = 1.0
 
