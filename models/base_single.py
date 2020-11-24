@@ -93,13 +93,17 @@ class ResBlock(nn.Module):
 class GroupBasicBlock(nn.Module):
     expansion = 1
 
-    def __init__(self, inp, oup, stride, kernel, num_action, num_block, groups=1, onelayer=False):
+    def __init__(self, inp, oup, stride, kernel, num_action, num_block, groups=1, norm_type='GroupNorm'):
         super(GroupBasicBlock, self).__init__()
         self.gn_group = 2
         self.num_action = num_action
 
-        self.norm1 = nn.GroupNorm(self.gn_group, oup)
-        self.norm2 = nn.GroupNorm(self.gn_group, oup)
+        if norm_type == 'GroupNorm':
+            self.norm1 = nn.GroupNorm(self.gn_group, oup)
+            self.norm2 = nn.GroupNorm(self.gn_group, oup)
+        else:
+            self.norm1 = nn.BatchNorm(oup)
+            self.norm2 = nn.BatchNorm(oup)
         self.params = 0
         
         self.conv1s = []
@@ -113,11 +117,17 @@ class GroupBasicBlock(nn.Module):
 
         self.shortcut = nn.Sequential()
         if stride != 1 and inp != oup:
-            self.shortcut = nn.Sequential(
-                nn.Conv2d(inp, oup, kernel_size=1, stride=stride, padding=0, bias=False),
-                nn.GroupNorm(self.gn_group, oup)
-            )
-        
+            if norm_type == 'GroupNorm':
+                self.shortcut = nn.Sequential(
+                    nn.Conv2d(inp, oup, kernel_size=1, stride=stride, padding=0, bias=False),
+                    nn.GroupNorm(self.gn_group, oup)
+                )
+            else:
+                self.shortcut = nn.Sequential(
+                    nn.Conv2d(inp, oup, kernel_size=1, stride=stride, padding=0, bias=False),
+                    nn.BatchNorm(oup)
+                )
+
 
 
     def forward(self, x, id, use_sbn=False, policy=None):
@@ -167,13 +177,17 @@ class GroupBasicBlock(nn.Module):
 class BasicBlock(nn.Module):
     expansion = 1
 
-    def __init__(self, inp, oup, stride, kernel, num_action, num_block, onelayer=False):
+    def __init__(self, inp, oup, stride, kernel, num_action, num_block, norm_type='GroupNorm'):
         super(BasicBlock, self).__init__()
-        self.onelayer = onelayer
         self.conv1 = nn.Conv2d(inp, oup, kernel_size=kernel, stride=stride, padding=kernel//2, bias=False)
-        self.norm1 = nn.GroupNorm(2, oup)
         self.conv2 = nn.Conv2d(oup, oup, kernel_size=kernel, stride=1, padding=kernel//2, bias=False)
-        self.norm2 = nn.GroupNorm(2, oup)
+        if norm_type == 'GroupNorm':
+            self.norm1 = nn.GroupNorm(2, oup)
+            self.norm2 = nn.GroupNorm(2, oup)
+        else:
+            self.norm1 = nn.BatchNorm(oup)
+            self.norm2 = nn.BatchNorm(oup)
+
         self.norm2_sbn = SwitchableBatchNorm2d(num_action, oup)
         self.params = 0
 

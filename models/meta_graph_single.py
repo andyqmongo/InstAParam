@@ -253,7 +253,7 @@ class ResNet18(MetaGraph):
            (128, 2, 2),
            (256, 2, 2),
            (512, 2, 2)]
-    def __init__(self, config=None, num_classes=10, detailed=True):
+    def __init__(self, config=None, num_classes=10, detailed=True, norm_type='GroupNorm'):
         super(ResNet18, self).__init__()
         self.detailed = detailed
         self.dset_name = 'cifar'
@@ -262,7 +262,11 @@ class ResNet18(MetaGraph):
         self.num_classes = num_classes
         # stem
         self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
-        self.norm1 = nn.GroupNorm(2, 64)
+        self.norm_type = norm_type
+        if norm_type == 'GroupNorm':
+            self.norm1 = nn.GroupNorm(2, 64)
+        else:
+            self.norm1 = nn.BatchNorm(64)
 
         self.layers = self._make_layers(in_planes=64)
         self.linear = nn.Linear(512, num_classes)
@@ -292,7 +296,7 @@ class ResNet18(MetaGraph):
         return nn.Sequential(*layers)
 
     def _make_action(self, inp, oup, stride):
-        action = base_single.GroupBasicBlock(inp, oup, stride, 7, self.num_of_actions, self.num_of_blocks, groups=4)
+        action = base_single.GroupBasicBlock(inp, oup, stride, 7, self.num_of_actions, self.num_of_blocks, groups=4, norm_type=self.norm_type)
         return action
         
 class ResNet18_64(MetaGraph):
@@ -302,7 +306,7 @@ class ResNet18_64(MetaGraph):
            (128, 2, 2),
            (256, 2, 2),
            (512, 2, 2)]
-    def __init__(self, config=None, num_classes=200, detailed=True):
+    def __init__(self, config=None, num_classes=200, detailed=True, norm_type='GroupNorm'):
         super(ResNet18_64, self).__init__()
         self.num_classes = num_classes
         self.dset_name = 'Tiny'
@@ -311,7 +315,10 @@ class ResNet18_64(MetaGraph):
         self.detailed = detailed
         # stem
         self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
-        self.norm1 = nn.GroupNorm(2, 64)
+        if norm_type == 'GroupNorm':
+            self.norm1 = nn.GroupNorm(2, 64)
+        else:
+            self.norm1 = nn.BatchNorm(64)
         self.layers = self._make_layers(in_planes=64)
         self.linear = nn.Linear(512, num_classes)
 
@@ -338,6 +345,6 @@ class ResNet18_64(MetaGraph):
         return nn.Sequential(*layers)
 
     def _make_action(self, inp, oup, stride):
-        action = base_single.GroupBasicBlock(inp, oup, stride, 7, self.num_of_actions, self.num_of_blocks, groups=4)
+        action = base_single.GroupBasicBlock(inp, oup, stride, 7, self.num_of_actions, self.num_of_blocks, groups=4, norm_type=self.norm_type)
 
         return action

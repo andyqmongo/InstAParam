@@ -59,7 +59,7 @@ class ResBlock(nn.Module):
 class GroupBasicBlock(nn.Module):
     expansion = 1
 
-    def __init__(self, inp, oup, stride, kernel, num_action, num_block, groups=1, onelayer=False):
+    def __init__(self, inp, oup, stride, kernel, num_action, num_block, groups=1):
         super(GroupBasicBlock, self).__init__()
         self.conv1 = nn.Conv2d(inp, oup, kernel_size=kernel, stride=stride, padding=kernel//2, bias=False)
         self.bn1 = nn.BatchNorm2d(oup)
@@ -86,9 +86,8 @@ class GroupBasicBlock(nn.Module):
 class BasicBlock(nn.Module):
     expansion = 1
 
-    def __init__(self, inp, oup, stride, kernel, num_action, num_block, onelayer=False):
+    def __init__(self, inp, oup, stride, kernel, num_action, num_block):
         super(BasicBlock, self).__init__()
-        self.onelayer = onelayer
         self.conv1 = nn.Conv2d(inp, oup, kernel_size=kernel, stride=stride, padding=kernel//2, bias=False)
         self.bn1 = nn.BatchNorm2d(oup)
         self.conv2 = nn.Conv2d(oup, oup, kernel_size=kernel, stride=1, padding=kernel//2, bias=False)

@@ -1,4 +1,6 @@
 import argparse
+import yaml
+
 import os
 import torch
 import torch.autograd as autograd
@@ -26,7 +28,6 @@ import wandb
 parser = argparse.ArgumentParser(description='InstAParam')
 parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')
 parser.add_argument('--net_lr', type=float, default=None, help='learning rate for net, use `args.lr` if not set')
-parser.add_argument('--beta', type=float, default=0.8, help='entropy multiplier')
 parser.add_argument('--model', default='InstAParam-single', choices=['InstAParam', 'InstAParam-single'])
 parser.add_argument('--dset_name', default='C10', required=False, choices=['C10', 'C100', 'Tiny', 'Fuzzy-C10'])
 parser.add_argument('--data_dir', default='./data', help='data directory')
@@ -36,9 +37,11 @@ parser.add_argument('--cv_dir', default='./result', help='checkpoint directory (
 parser.add_argument('--batch_size', type=int, default=10, help='batch size')
 parser.add_argument('--iter_per_batch', type=int, default=10, help='iterations for each batch of data')
 parser.add_argument('--alpha', type=float, default=0.80, help='probability bounding factor')
+parser.add_argument('--beta', type=float, default=0.8, help='entropy multiplier')
 parser.add_argument('--pos_w', type=float, default=30.)
 parser.add_argument('--neg_w', type=float, default=0.)
 parser.add_argument('--lat_exp', type=float, default=1.)
+parser.add_argument('--norm_type', type=str, default='GroupNorm', choices=['GroupNorm', 'BatchNorm'])
 #for continual learning
 parser.add_argument('--pretrain_epochs', type=int, default=0)
 parser.add_argument('--ewc_lambda', type=int, default=0)
@@ -62,8 +65,8 @@ if args.net_lr is None:
 if not os.path.exists(args.cv_dir):
     os.makedirs(args.cv_dir)
 
-hyperparam = 'lr_{:.6f}_netlr{:.6f}_iter{}_{}_mu{}_gamma{:.4f}_ewc{}'.format(
-    args.lr, args.net_lr, args.iter_per_batch, args.net_optimizer, args.mu, args.gamma, args.ewc_lambda)
+hyperparam = 'lr_{:.6f}_netlr{:.6f}_iter{}_{}_mu{}_gamma{:.4f}_ewc{}_{}'.format(
+    args.lr, args.net_lr, args.iter_per_batch, args.net_optimizer, args.mu, args.gamma, args.ewc_lambda, args.norm_type)
 save_dir = os.path.join(args.cv_dir, hyperparam)
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)
@@ -140,16 +143,16 @@ def train_online_and_test(trainLoaders, testLoaders):
                 #--------------------------------------------------------------------------------------------#
                 
                 curSubclass = range(0*task_length, 0*task_length+task_length)
-                mask = [0.] * task_length * num_tasks
+                mask = [0.] * num_classes
                 for sub in curSubclass:
                     mask[sub] = 1.0
                 preds = preds[:, curSubclass]
 
                 _, pred_idx = preds.max(1)
 
-                
-                b = Variable(torch.Tensor([0*task_length]).long()).cuda()
-                match = (pred_idx == (targets-b.expand(targets.size()))).data.float()
+                #b = Variable(torch.Tensor([0*task_length]).long()).cuda()
+                #match = (pred_idx == (targets-b.expand(targets.size()))).data.float()
+                match = (pred_idx == targets).data.float()
 
                 matches.append(match)
                 policies.append(policy_zero)
@@ -380,7 +383,7 @@ def train_online_and_test(trainLoaders, testLoaders):
 def test(testLoaders, repro_oneshot=False, test_task=-1, cur_task=-1):
     assert test_task < num_tasks
     accs = np.zeros(num_tasks)
-    meta_graph_, controller_ = utils.get_model(args.model, args.dset_name, detailed=False)
+    meta_graph_, controller_ = utils.get_model(args.model, args.dset_name, norm_type=args.norm_type, detailed=False)
 
     loop_through_task = list(range(num_tasks)) if test_task < 0 else [test_task]
 
@@ -451,7 +454,7 @@ from dataloader import getDataloaders
 trainLoaders, testLoaders = getDataloaders(dset_name=args.dset_name, shuffle=True, splits=['train', 'test'], 
         data_root=args.data_dir, batch_size=args.batch_size, num_workers=0, num_tasks=num_tasks, raw=False)
 
-meta_graph, controller = utils.get_model(args.model, args.dset_name)
+meta_graph, controller = utils.get_model(args.model, args.dset_name, norm_type=args.norm_type)
 
 
 if args.load_graph is not None:
