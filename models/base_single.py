@@ -102,8 +102,8 @@ class GroupBasicBlock(nn.Module):
             self.norm1 = nn.GroupNorm(self.gn_group, oup)
             self.norm2 = nn.GroupNorm(self.gn_group, oup)
         else:
-            self.norm1 = nn.BatchNorm(oup)
-            self.norm2 = nn.BatchNorm(oup)
+            self.norm1 = nn.BatchNorm2d(oup)
+            self.norm2 = nn.BatchNorm2d(oup)
         self.params = 0
         
         self.conv1s = []
@@ -125,7 +125,7 @@ class GroupBasicBlock(nn.Module):
             else:
                 self.shortcut = nn.Sequential(
                     nn.Conv2d(inp, oup, kernel_size=1, stride=stride, padding=0, bias=False),
-                    nn.BatchNorm(oup)
+                    nn.BatchNorm2d(oup)
                 )
 
 
@@ -185,8 +185,8 @@ class BasicBlock(nn.Module):
             self.norm1 = nn.GroupNorm(2, oup)
             self.norm2 = nn.GroupNorm(2, oup)
         else:
-            self.norm1 = nn.BatchNorm(oup)
-            self.norm2 = nn.BatchNorm(oup)
+            self.norm1 = nn.BatchNorm2d(oup)
+            self.norm2 = nn.BatchNorm2d(oup)
 
         self.norm2_sbn = SwitchableBatchNorm2d(num_action, oup)
         self.params = 0

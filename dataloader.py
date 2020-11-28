@@ -4,6 +4,16 @@ import torchvision.transforms as transforms
 import random
 import numpy as np
 
+class TinyImageNet_CL(dset.ImageFolder):
+    def __init__(self, root, class_per_task, task_id,split='train', transform=None):
+        if task_id * class_per_task >= 200 or task_id < 0:
+            raise ValueError('Task id exceed')
+        
+        self.root = os.path.expanduser(root)
+        self.split = split
+        self.transform = transform
+
+
 def cutout(mask_size, p, cutout_inside=False, mask_color=(0, 0, 0)):
     mask_size_half = mask_size // 2
     offset = 1 if mask_size % 2 == 0 else 0

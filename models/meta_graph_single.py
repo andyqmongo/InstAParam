@@ -266,7 +266,7 @@ class ResNet18(MetaGraph):
         if norm_type == 'GroupNorm':
             self.norm1 = nn.GroupNorm(2, 64)
         else:
-            self.norm1 = nn.BatchNorm(64)
+            self.norm1 = nn.BatchNorm2d(64)
 
         self.layers = self._make_layers(in_planes=64)
         self.linear = nn.Linear(512, num_classes)
@@ -318,7 +318,7 @@ class ResNet18_64(MetaGraph):
         if norm_type == 'GroupNorm':
             self.norm1 = nn.GroupNorm(2, 64)
         else:
-            self.norm1 = nn.BatchNorm(64)
+            self.norm1 = nn.BatchNorm2d(64)
         self.layers = self._make_layers(in_planes=64)
         self.linear = nn.Linear(512, num_classes)
 

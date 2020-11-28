@@ -29,6 +29,7 @@ parser.add_argument('--data_dir', default='./data/')
 parser.add_argument('--load_dir', required=True, default=None)
 parser.add_argument('--batch_size', type=int, default=250)
 parser.add_argument('--mu', default=0.5, type=float, help='threshold for picking the block')
+parser.add_argument('--norm_type', type=str, default='GroupNorm', choices=['GroupNorm', 'BatchNorm'])
 
 args = parser.parse_args()
 
@@ -85,7 +86,7 @@ from dataloader import getDataloaders
 _, testLoaders = getDataloaders(dset_name=args.dset_name, shuffle=True, splits=['test'], 
         data_root=args.data_dir, batch_size=args.batch_size, num_workers=0, num_tasks=num_tasks, raw=False)
 
-meta_graph, agent = utils.get_model(args.model, args.dset_name)
+meta_graph, agent = utils.get_model(args.model, args.dset_name, norm_type=args.norm_type)
 meta_graph.cuda()
 agent.cuda()
 

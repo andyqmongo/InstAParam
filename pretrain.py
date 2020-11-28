@@ -34,11 +34,11 @@ parser.add_argument('--task', type=int, default=0, help="task to pre-train")
 parser.add_argument('--epochs', type=int, default=100)
 parser.add_argument('--net_optimizer', default='sgd', choices=['adam', 'sgd'])
 parser.add_argument('--wd', type=float, default=0.0, help='weight decay')
-
+parser.add_argument('--norm_type', type=str, default='GroupNorm', choices=['GroupNorm', 'BatchNorm'])
 args = parser.parse_args()
 
 
-hyperparam = 'lr_{:.6f}_b_{}_e_{}_{}'.format(args.lr, args.batch_size, args.epochs, args.net_optimizer)
+hyperparam = 'lr_{:.6f}_b_{}_e_{}_{}_{}'.format(args.lr, args.batch_size, args.epochs, args.net_optimizer, args.norm_type)
 args.cv_dir = os.path.join(args.cv_dir, hyperparam)
 
 if not os.path.exists(args.cv_dir):
@@ -50,9 +50,9 @@ if not os.path.exists('./{}/models'.format(args.cv_dir)):
 
 utils.save_args(__file__, args)
 
-wandb.init(project='NIPS_InstAParam-single-{}-pretrain'.format(args.dset_name), config=args, name=hyperparam)
+wandb.init(project='NIPS_{}-{}-pretrain'.format(args.model, args.dset_name), config=args, name=hyperparam)
 
-if args.dset_name == 'C10' or 'Fuzzy-C10':
+if args.dset_name == 'C10' or args.dset_name == 'Fuzzy-C10':
     task_length = 2
     num_tasks = 5
 elif args.dset_name == 'C100':
@@ -126,7 +126,7 @@ def train(trainloader, testloader, task):
         accuracy = torch.cat(matches, 0).mean()
         testing_acc = torch.cat(matches_te, 0).mean()
 
-
+        
         if epoch == args.epochs // 2:
             net_state_dict = meta_graph.state_dict()
             torch.save(net_state_dict, os.path.join(args.cv_dir, 'ckpt_pretrain.t7'))
@@ -139,7 +139,7 @@ def train(trainloader, testloader, task):
         })
 
 
-meta_graph, _ = utils.get_model(args.model, args.dset_name)
+meta_graph, _ = utils.get_model(args.model, args.dset_name, norm_type=args.norm_type)
 meta_graph.cuda()
 
 
@@ -151,5 +151,7 @@ elif args.net_optimizer == 'adam':
 from dataloader import getDataloaders
 trainLoaders, testLoaders = getDataloaders(dset_name=args.dset_name, shuffle=True, splits=['train', 'test'], 
         data_root=args.data_dir, batch_size=args.batch_size, num_workers=0, num_tasks=num_tasks, raw=False)
+
+assert num_tasks == len(trainLoaders) == len(testLoaders)
 
 train(trainLoaders[args.task], testLoaders[args.task], args.task)

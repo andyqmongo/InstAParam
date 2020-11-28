@@ -24,6 +24,13 @@ import warnings
 warnings.filterwarnings("ignore")
 
 import wandb
+"""
+Set seed
+"""
+np.random.seed = 9487
+torch.manual_seed(9487)
+torch.cuda.manual_seed(9487)
+torch.cuda.manual_seed_all(9487)
 
 parser = argparse.ArgumentParser(description='InstAParam')
 parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')
@@ -65,7 +72,7 @@ if args.net_lr is None:
 if not os.path.exists(args.cv_dir):
     os.makedirs(args.cv_dir)
 
-hyperparam = 'lr_{:.6f}_netlr{:.6f}_iter{}_{}_mu{}_gamma{:.4f}_ewc{}_{}'.format(
+hyperparam = 'lr_{:.6f}_netlr{:.6f}_iter{}_{}_mu{:.3f}_gamma{:.4f}_ewc{}_{}'.format(
     args.lr, args.net_lr, args.iter_per_batch, args.net_optimizer, args.mu, args.gamma, args.ewc_lambda, args.norm_type)
 save_dir = os.path.join(args.cv_dir, hyperparam)
 if not os.path.exists(save_dir):
@@ -444,24 +451,43 @@ def test(testLoaders, repro_oneshot=False, test_task=-1, cur_task=-1):
         assert accs[test_task] == accuracy
         return accs[test_task]
 
-    if args.dset_name=='C10':
+    if args.dset_name=='C10' or args.dset_name=='Fuzzy-C10':
         return np.mean(accs), accs
     else:
         return np.mean(accs[1:]), accs
 
 
 from dataloader import getDataloaders
-trainLoaders, testLoaders = getDataloaders(dset_name=args.dset_name, shuffle=True, splits=['train', 'test'], 
+trainLoaders, _ = getDataloaders(dset_name=args.dset_name, shuffle=True, splits=['train'], 
         data_root=args.data_dir, batch_size=args.batch_size, num_workers=0, num_tasks=num_tasks, raw=False)
+
+testLoaders = None
+if args.dset_name.find("Fuzzy") >= 0:
+    _, testLoaders = getDataloaders(dset_name="C10", shuffle=True, splits=['test'], 
+            data_root=args.data_dir, batch_size=args.batch_size, num_workers=0, num_tasks=num_tasks, raw=False)
+else:
+    _, testLoaders = getDataloaders(dset_name=args.dset_name, shuffle=True, splits=['test'], 
+            data_root=args.data_dir, batch_size=args.batch_size, num_workers=0, num_tasks=num_tasks, raw=False)
+assert testLoaders != None
 
 meta_graph, controller = utils.get_model(args.model, args.dset_name, norm_type=args.norm_type)
 
+
+utils.save_args(__file__, args)
+if not os.path.exists('./{}/models'.format(args.cv_dir)):
+    import shutil
+    shutil.copytree('./models', './{}/models'.format(args.cv_dir))
 
 if args.load_graph is not None:
     checkpoint = torch.load(args.load_graph)
     new_state = meta_graph.state_dict()
     new_state.update(checkpoint)
     meta_graph.load_state_dict(new_state, strict=False)
+
+    if args.load_graph.find("BatchNorm") >= 0:
+        args.norm_type = 'BatchNorm'
+    elif args.load_graph.find("GroupNorm") >= 0:
+        args.norm_type = 'GroupNorm'
 
 meta_graph.cuda()
 controller.cuda()
