@@ -32,7 +32,7 @@ parser.add_argument('--cv_dir', default='./result', help='checkpoint directory (
 parser.add_argument('--batch_size', type=int, default=200, help='batch size')
 parser.add_argument('--task', type=int, default=0, help="task to pre-train")
 parser.add_argument('--epochs', type=int, default=100)
-parser.add_argument('--net_optimizer', default='sgd', choices=['adam', 'sgd'])
+parser.add_argument('--net_optimizer', default='sgd', choices=['adam', 'sgd', 'sgdm'])
 parser.add_argument('--wd', type=float, default=0.0, help='weight decay')
 parser.add_argument('--norm_type', type=str, default='GroupNorm', choices=['GroupNorm', 'BatchNorm'])
 args = parser.parse_args()
@@ -147,6 +147,8 @@ if args.net_optimizer == 'sgd':
     optimizer_net = optim.SGD(meta_graph.parameters(), lr=args.lr, weight_decay=args.wd)
 elif args.net_optimizer == 'adam':
     optimizer_net = optim.Adam(meta_graph.parameters(), lr=args.lr, weight_decay=args.wd)
+elif args.net_optimizer == 'sgdm':
+    optimizer_net = optim.SGD(meta_graph.parameters(), lr=args.lr, weight_decay=args.wd, momentum=0.9)
 
 from dataloader import getDataloaders
 trainLoaders, testLoaders = getDataloaders(dset_name=args.dset_name, shuffle=True, splits=['train', 'test'], 

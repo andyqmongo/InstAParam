@@ -72,6 +72,14 @@ if args.net_lr is None:
 if not os.path.exists(args.cv_dir):
     os.makedirs(args.cv_dir)
 
+if args.load_graph:
+    if args.load_graph.find("BatchNorm") >= 0:
+        args.norm_type = 'BatchNorm'
+    elif args.load_graph.find("GroupNorm") >= 0:
+        args.norm_type = 'GroupNorm'
+
+
+
 hyperparam = 'lr_{:.6f}_netlr{:.6f}_iter{}_{}_mu{:.3f}_gamma{:.4f}_ewc{}_{}'.format(
     args.lr, args.net_lr, args.iter_per_batch, args.net_optimizer, args.mu, args.gamma, args.ewc_lambda, args.norm_type)
 save_dir = os.path.join(args.cv_dir, hyperparam)
@@ -484,10 +492,6 @@ if args.load_graph is not None:
     new_state.update(checkpoint)
     meta_graph.load_state_dict(new_state, strict=False)
 
-    if args.load_graph.find("BatchNorm") >= 0:
-        args.norm_type = 'BatchNorm'
-    elif args.load_graph.find("GroupNorm") >= 0:
-        args.norm_type = 'GroupNorm'
 
 meta_graph.cuda()
 controller.cuda()

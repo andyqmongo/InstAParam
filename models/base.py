@@ -59,19 +59,25 @@ class ResBlock(nn.Module):
 class GroupBasicBlock(nn.Module):
     expansion = 1
 
-    def __init__(self, inp, oup, stride, kernel, num_action, num_block, groups=1):
+    def __init__(self, inp, oup, stride, kernel, num_action, num_block, groups=1, norm_type='GroupNorm'):
         super(GroupBasicBlock, self).__init__()
         self.conv1 = nn.Conv2d(inp, oup, kernel_size=kernel, stride=stride, padding=kernel//2, bias=False)
-        self.bn1 = nn.BatchNorm2d(oup)
+        if norm_type == 'GroupNorm':
+            self.norm1 = nn.GroupNorm(2, oup)
+        else:
+            self.norm1 = nn.BatchNorm2d(oup)
         self.conv2 = nn.Conv2d(oup, oup, kernel_size=kernel, stride=1, padding=kernel//2, bias=False, groups=groups)
-        self.bn2 = nn.BatchNorm2d(oup)
+        if norm_type == 'GroupNorm':
+            self.norm2 = nn.GroupNorm(2, oup)
+        else:
+            self.norm2 = nn.BatchNorm2d(oup)
         self.bn2_sbn = SwitchableBatchNorm2d(num_action, oup)
         self.params = 0
         
 
     def forward(self, x, use_sbn=False, policy=None):
         out = self.conv1(x)
-        out = self.bn1(out)
+        out = self.norm1(out)
         out = F.relu(out)
 
         out = self.conv2(out)
@@ -79,26 +85,32 @@ class GroupBasicBlock(nn.Module):
             assert policy != None
             out = self.bn2_sbn(out, policy)
         else:
-            out = self.bn2(out)
+            out = self.norm2(out)
         out = F.relu(out)
         return out
 
 class BasicBlock(nn.Module):
     expansion = 1
 
-    def __init__(self, inp, oup, stride, kernel, num_action, num_block):
+    def __init__(self, inp, oup, stride, kernel, num_action, num_block, norm_type='GroupNorm'):
         super(BasicBlock, self).__init__()
         self.conv1 = nn.Conv2d(inp, oup, kernel_size=kernel, stride=stride, padding=kernel//2, bias=False)
-        self.bn1 = nn.BatchNorm2d(oup)
+        if norm_type == 'GroupNorm':
+            self.norm1 = nn.GroupNorm(2, oup)
+        else:
+            self.norm1 = nn.BatchNorm2d(oup)
         self.conv2 = nn.Conv2d(oup, oup, kernel_size=kernel, stride=1, padding=kernel//2, bias=False)
-        self.bn2 = nn.BatchNorm2d(oup)
+        if norm_type == 'GroupNorm':
+            self.norm2 = nn.GroupNorm(2, oup)
+        else:
+            self.norm2 = nn.BatchNorm2d(oup)
         self.bn2_sbn = SwitchableBatchNorm2d(num_action, oup)
         self.params = 0
 
     def forward(self, x, use_sbn=False, policy=None):
 
         out = self.conv1(x)
-        out = self.bn1(out)
+        out = self.norm1(out)
         out = F.relu(out)
 
         out = self.conv2(out)
@@ -106,7 +118,7 @@ class BasicBlock(nn.Module):
             assert policy != None
             out = self.bn2_sbn(out, policy)
         else:
-            out = self.bn2(out)
+            out = self.norm2(out)
         out = F.relu(out)
 
         return out

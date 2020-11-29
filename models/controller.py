@@ -81,12 +81,16 @@ class ResNet(nn.Module):
 
 class ResNet32(ResNet):
 
-    def __init__(self, block, layers, num_classes=10):
+    def __init__(self, block, layers, num_classes=10, norm_type='GroupNorm'):
         super(ResNet32, self).__init__()
+        self.norm_type = norm_type
 
         self.inplanes = 16
         self.conv1 = base.conv3x3(3, 16)
-        self.norm1 = nn.GroupNorm(2,16)
+        if self.norm_type == 'GroupNorm':
+            self.norm1 = nn.GroupNorm(2,16)
+        else:
+            self.norm1 = nn.BatchNorm2d(16)
         self.relu = nn.ReLU(inplace=True)
         self.avgpool = nn.AvgPool2d(8)
 
@@ -113,6 +117,9 @@ class ResNet32(ResNet):
             elif isinstance(m, nn.GroupNorm):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
+            elif isinstance(m, nn.BatchNorm2d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
 
     def seed(self, x):
         return self.relu(self.norm1(self.conv1(x)))
@@ -135,12 +142,16 @@ class ResNet32(ResNet):
 
 class ResNet224(ResNet):
 
-    def __init__(self, block, layers, num_classes=1000):
+    def __init__(self, block, layers, num_classes=1000, norm_type='GroupNorm'):
         self.inplanes = 64//4
         super(ResNet224, self).__init__()
         self.conv1 = nn.Conv2d(3, 16, kernel_size=7,
                                stride=2, padding=3, bias=False)
-        self.norm1 = nn.GroupNorm(2, 16)
+        self.norm_type = norm_type
+        if self.norm_type == 'GroupNorm':
+            self.norm1 = nn.GroupNorm(2, 16)
+        else:
+            self.norm1 = nn.BatchNorm2d(16)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
 
@@ -166,6 +177,9 @@ class ResNet224(ResNet):
             elif isinstance(m, nn.GroupNorm):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
+            elif isinstance(m, nn.BatchNorm2d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
 
         self.layer_config = layers
 
@@ -177,11 +191,19 @@ class ResNet224(ResNet):
 
         downsample = nn.Sequential()
         if stride != 1 or self.inplanes != planes * block.expansion:
-            downsample = nn.Sequential(
-                nn.Conv2d(self.inplanes, planes * block.expansion,
-                          kernel_size=1, stride=stride, bias=False),
-                nn.GroupNorm(2, planes * block.expansion),
-            )
+            if self.norm_type == 'GroupNorm':
+                downsample = nn.Sequential(
+                    nn.Conv2d(self.inplanes, planes * block.expansion,
+                            kernel_size=1, stride=stride, bias=False),
+                    nn.GroupNorm(2, planes * block.expansion),
+                )
+            else:
+                downsample = nn.Sequential(
+                    nn.Conv2d(self.inplanes, planes * block.expansion,
+                            kernel_size=1, stride=stride, bias=False),
+                    nn.BatchNorm2d(planes * block.expansion),
+                )
+
 
         layers = [block(self.inplanes, planes, stride)]
         self.inplanes = planes * block.expansion
@@ -193,11 +215,11 @@ class ResNet224(ResNet):
 
 class Policy32(nn.Module):
 
-    def __init__(self, layer_config=[1, 1, 1], num_blocks=15, num_of_actions=7):
+    def __init__(self, layer_config=[1, 1, 1], num_blocks=15, num_of_actions=7, norm_type='GroupNorm'):
         super(Policy32, self).__init__()
         self.num_of_actions = num_of_actions  # 7
         self.num_blocks = num_blocks
-        self.features = ResNet32(base.BasicBlock, layer_config, num_classes=10)
+        self.features = ResNet32(base.BasicBlock, layer_config, num_classes=10, norm_type=norm_type)
         self.feat_dim = self.features.fc.weight.data.shape[1]
         self.features.fc = nn.Sequential()
         self.logit = nn.Linear(self.feat_dim, num_blocks * self.num_of_actions)
@@ -215,11 +237,11 @@ class Policy32(nn.Module):
 
 class Policy224(nn.Module):
 
-    def __init__(self, layer_config=[1, 1, 1, 1], num_blocks=17, num_of_actions=5):
+    def __init__(self, layer_config=[1, 1, 1, 1], num_blocks=17, num_of_actions=5, norm_type='GroupNorm'):
         super(Policy224, self).__init__()
         self.num_blocks = num_blocks
         self.num_of_actions = num_of_actions
-        self.features = ResNet224(base.BasicBlock, layer_config, num_classes=1000)
+        self.features = ResNet224(base.BasicBlock, layer_config, num_classes=1000, norm_type=norm_type)
 
         self.features.avgpool = nn.AvgPool2d(4)
         self.feat_dim = self.features.fc.weight.data.shape[1]
