@@ -1,5 +1,4 @@
 import argparse
-import yaml
 
 import os
 import torch
@@ -15,7 +14,6 @@ import torch.optim as optim
 from torch.distributions import Bernoulli
 import sys
 import math
-import pandas as pd
 import torch.backends.cudnn as cudnn
 cudnn.benchmark = True
 torch.set_num_threads(1)

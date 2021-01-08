@@ -5,7 +5,13 @@ Hung-Jen Chen, [An-Chieh Cheng](https://anjiecheng.github.io/), [Da-Cheng Juan](
 
 
 ## Requirements
-
+```
+torch
+torchvision
+tensorboard
+numpy
+tqdm
+```
 ## Pre-train
 
 ## Training
