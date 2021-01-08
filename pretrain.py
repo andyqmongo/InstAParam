@@ -13,7 +13,8 @@ torch.set_num_threads(1)
 
 import warnings
 warnings.filterwarnings("ignore")
-import wandb
+
+from torch.utils.tensorboard import SummaryWriter
 
 """
 Set seed
@@ -41,6 +42,8 @@ args = parser.parse_args()
 hyperparam = 'lr_{:.6f}_b_{}_e_{}_{}_{}'.format(args.lr, args.batch_size, args.epochs, args.net_optimizer, args.norm_type)
 args.cv_dir = os.path.join(args.cv_dir, hyperparam)
 
+writer = SummaryWriter(os.path.join(args.cv_dir, 'log'))
+
 if not os.path.exists(args.cv_dir):
     os.makedirs(args.cv_dir)
 
@@ -50,7 +53,6 @@ if not os.path.exists('./{}/models'.format(args.cv_dir)):
 
 utils.save_args(__file__, args)
 
-wandb.init(project='NIPS_{}-{}-pretrain'.format(args.model, args.dset_name), config=args, name=hyperparam)
 
 if args.dset_name == 'C10' or args.dset_name == 'Fuzzy-C10':
     task_length = 2
@@ -133,10 +135,8 @@ def train(trainloader, testloader, task):
         elif epoch >= args.epochs-1:
             net_state_dict = meta_graph.state_dict()
             torch.save(net_state_dict, os.path.join(args.cv_dir, 'ckpt_pretrain_dropout.t7'))
-        wandb.log({
-            'train acc': accuracy,
-            'test acc': testing_acc
-        })
+        writer.add_scalar('Train Accuracy', accuracy, epoch)
+        writer.add_scalar('Test Accuracy', testing_acc, epoch)
 
 
 meta_graph, _ = utils.get_model(args.model, args.dset_name, norm_type=args.norm_type)

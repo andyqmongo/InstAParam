@@ -14,6 +14,8 @@ torch.set_num_threads(1)
 import warnings
 warnings.filterwarnings("ignore")
 
+from torch.utils.tensorboard import SummaryWriter
+
 """
 Set seed
 """
@@ -32,6 +34,8 @@ parser.add_argument('--mu', default=0.5, type=float, help='threshold for picking
 parser.add_argument('--norm_type', type=str, default='GroupNorm', choices=['GroupNorm', 'BatchNorm'])
 
 args = parser.parse_args()
+
+writer = SummaryWriter(os.path.join(args.load_dir, 'log'))
 
 if args.dset_name == 'C10' or args.dset_name == 'Fuzzy-C10':
     task_length = 2
@@ -65,35 +69,49 @@ def test(testloader, test_task, agent, meta_graph):
         #--------------------------------------------------------------------------------------------#
 
         curSubclass = range(test_task*task_length, test_task*task_length+task_length)
-        mask = [0.] * task_length * num_tasks
+        mask = [0.] * (task_length * num_tasks)
         for sub in curSubclass:
             mask[sub] = 1.0
         preds = preds[:, curSubclass]
 
         _, pred_idx = preds.max(1)
 
-        b = Variable(torch.Tensor([test_task*task_length]).long()).cuda()
-        match = (pred_idx == (targets-b.expand(targets.size()))).data.float()
+        match = (pred_idx == targets).data.float()
 
         matches_te.append(match)
 
     testing_acc = torch.cat(matches_te, 0).mean()
 
-    return testing_acc
+    return testing_acc.cpu().detach().numpy()
 
 
 from dataloader import getDataloaders
 _, testLoaders = getDataloaders(dset_name=args.dset_name, shuffle=True, splits=['test'], 
         data_root=args.data_dir, batch_size=args.batch_size, num_workers=0, num_tasks=num_tasks, raw=False)
 
-meta_graph, agent = utils.get_model(args.model, args.dset_name, norm_type=args.norm_type)
+meta_graph, controller = utils.get_model(args.model, args.dset_name, norm_type=args.norm_type)
 meta_graph.cuda()
-agent.cuda()
+controller.cuda()
 
-accs = []
-for t in range(num_tasks):
+accs = np.zeros((num_tasks, num_tasks))
+start_task = 0
+if args.dset_name =='C100' or args.dset_name =='Tiny':
+    start_task = 1
+
+for t in range(start_task, num_tasks):
+    ckpt_net = torch.load('{}/meta_grpah_{}.t7'.format(args.load_dir, t))
+    meta_graph.load_state_dict(ckpt_net, strict=False)
+    meta_graph.eval().cuda()
+    if args.model == 'InstAParam-single':
+        meta_graph.assign_mask()
+
     for tt in range(t):
-        acc = test(testLoaders[tt], tt, agent, meta_graph)
-        accs.append(acc)
+        if os.path.exists('{}/controller_{}.t7'.format(args.load_dir, tt)):
+            ckpt = torch.load('{}/controller_{}.t7'.format(args.load_dir, tt))
+            controller.load_state_dict(ckpt)
+            controller.eval().cuda()
+
+        accs[t][tt] = test(testLoaders[tt], tt, controller, meta_graph)
+        
 
 print(accs)

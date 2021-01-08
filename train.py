@@ -23,7 +23,9 @@ import random
 import warnings
 warnings.filterwarnings("ignore")
 
-import wandb
+from torch.utils.tensorboard import SummaryWriter
+
+
 """
 Set seed
 """
@@ -58,9 +60,13 @@ parser.add_argument('--k', default=10., type=float, help='value to reshape sigmo
 parser.add_argument('--shift', default=0.5, type=float, help='the amount of sigmoid function shift')
 parser.add_argument('--mu', type=float, default=0.5, help='thresholds to determine picked or not')
 parser.add_argument('--wd', type=float, default=0.0, help='weight decay')
+#Other
+parser.add_argument('--log', default=None, help='log with tensorboard or not')
 
 args = parser.parse_args()
 
+if args.log:
+    writer = SummaryWriter()
 
 np.set_printoptions(suppress=True)
 tanh = torch.nn.Tanh()
@@ -86,7 +92,6 @@ save_dir = os.path.join(args.cv_dir, hyperparam)
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)
 
-wandb.init(project='NIPS_{}_{}'.format(args.model, args.dset_name), config=args, name=hyperparam)
 args.cv_dir = save_dir
 
 if args.dset_name.find('C100') >= 0:
@@ -349,43 +354,38 @@ def train_online_and_test(trainLoaders, testLoaders):
                 utils.save_real_param(net_state_dict, os.path.join(args.cv_dir, 'meta_grpah_{}.t7'.format(task)))
             else:
                 torch.save(net_state_dict, os.path.join(args.cv_dir, 'meta_grpah_{}.t7'.format(task)))
-            #------ wandb --------
             if iteration%20 == 0:
                 test_avg_acc, test_accs = test(testLoaders, cur_task=task)    
                 if args.dset_name == 'C10' or args.dset_name=='Fuzzy-C10':
-                    wandb.log({
-                        'loss': np.mean(entropy_loss.detach().cpu().numpy()),
-                        'ewc loss': np.mean(ewc_loss.detach().cpu().numpy()),
-                        'online train acc': torch.cat(matches, 0).mean().cpu().numpy(),
-                        #'cur train acc': train_acc,
-                        'avg test acc':test_avg_acc,
-                        'test acc 0':test_accs[0],
-                        'test acc 1':test_accs[1],
-                        'test acc 2':test_accs[2],
-                        'test acc 3':test_accs[3],
-                        'test acc 4':test_accs[4]
-                    },step=iteration)
+                    if args.log:
+                        writer.add_scalar('Loss/Entropy', np.mean(entropy_loss.detach().cpu().numpy()), iteration)
+                        writer.add_scalar('Loss/EWC', np.mean(ewc_loss.detach().cpu().numpy()), iteration)
+                        writer.add_scalar('Online Train Accuracy', torch.cat(matches, 0).mean().cpu().numpy(), iteration)
+                        writer.add_scalar('Average Test Accuracy', test_avg_acc, iteration)
+                        writer.add_scalar('Test Accuracy/Task 1', test_accs[0], iteration)
+                        writer.add_scalar('Test Accuracy/Task 2', test_accs[1], iteration)
+                        writer.add_scalar('Test Accuracy/Task 3', test_accs[2], iteration)
+                        writer.add_scalar('Test Accuracy/Task 4', test_accs[3], iteration)
+                        writer.add_scalar('Test Accuracy/Task 5', test_accs[4], iteration)
+
                 else:
-                    wandb.log({
-                        'loss': np.mean(entropy_loss.detach().cpu().numpy()),
-                        'ewc loss': np.mean(ewc_loss.detach().cpu().numpy()),
-                        'online train acc': torch.cat(matches, 0).mean().cpu().numpy(),
-                        #'cur train acc': train_acc,
-                        'avg test acc':test_avg_acc,
-                        'test acc 0':test_accs[0],
-                        'test acc 1':test_accs[1],
-                        'test acc 2':test_accs[2],
-                        'test acc 3':test_accs[3],
-                        'test acc 4':test_accs[4],
-                        'test acc 5':test_accs[5],
-                        'test acc 6':test_accs[6],
-                        'test acc 7':test_accs[7],
-                        'test acc 8':test_accs[8],
-                        'test acc 9':test_accs[9],
-                    },step=iteration)
+                    if args.log:
+                        writer.add_scalar('Loss/Entropy', np.mean(entropy_loss.detach().cpu().numpy()), iteration)
+                        writer.add_scalar('Loss/EWC', np.mean(ewc_loss.detach().cpu().numpy()), iteration)
+                        writer.add_scalar('Online Train Accuracy', torch.cat(matches, 0).mean().cpu().numpy(), iteration)
+                        writer.add_scalar('Average Test Accuracy', test_avg_acc, iteration)
+                        writer.add_scalar('Test Accuracy/Task 0', test_accs[0], iteration)
+                        writer.add_scalar('Test Accuracy/Task 1', test_accs[1], iteration)
+                        writer.add_scalar('Test Accuracy/Task 2', test_accs[2], iteration)
+                        writer.add_scalar('Test Accuracy/Task 3', test_accs[3], iteration)
+                        writer.add_scalar('Test Accuracy/Task 4', test_accs[4], iteration)
+                        writer.add_scalar('Test Accuracy/Task 5', test_accs[5], iteration)
+                        writer.add_scalar('Test Accuracy/Task 6', test_accs[6], iteration)
+                        writer.add_scalar('Test Accuracy/Task 7', test_accs[7], iteration)
+                        writer.add_scalar('Test Accuracy/Task 8', test_accs[8], iteration)
+                        writer.add_scalar('Test Accuracy/Task 9', test_accs[9], iteration)
 
 
-            #-------
 
 
 
