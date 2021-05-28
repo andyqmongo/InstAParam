@@ -33,7 +33,6 @@ parser.add_argument('--load_dir', default=None)
 parser.add_argument('--batch_size', type=int, default=250)
 parser.add_argument('--mu', default=0.5, type=float, help='threshold for picking the block')
 parser.add_argument('--norm_type', type=str, default='GroupNorm', choices=['GroupNorm', 'BatchNorm'])
-parser.add_argument('--loop_through_dir', default=None)
 args = parser.parse_args()
 
 
@@ -147,21 +146,4 @@ if __name__ == '__main__':
     from dataloader import getDataloaders
     _, testLoaders = getDataloaders(dset_name=args.dset_name, shuffle=True, splits=['test'], 
             data_root=args.data_dir, batch_size=args.batch_size, num_workers=0, num_tasks=num_tasks, raw=False)
-    if args.loop_through_dir is None:
-        test_one_by_one(testLoaders, args.model, args.dset_name, args.norm_type, args.load_dir, detailed=True)
-    else:
-
-        tables = []
-        listdirs = os.listdir(args.loop_through_dir)
-        for dir in tqdm.tqdm(listdirs):
-            full_dir = os.path.join(args.loop_through_dir, dir)
-            if full_dir.find('GroupNorm') > 0:
-                norm_type = 'GroupNorm'
-            elif full_dir.find('BatchNorm') > 0:
-                norm_type = 'BatchNorm'
-            else:
-                norm_type = args.norm_type
-            avg_acc = test_one_by_one(testLoaders, args.model, args.dset_name, norm_type, full_dir, detailed=False)
-            tables.append([dir, avg_acc])        
-        df_table = pd.DataFrame(tables)
-        df_table.to_csv(os.path.join(args.loop_through_dir, 'result.csv'))
+    test_one_by_one(testLoaders, args.model, args.dset_name, args.norm_type, args.load_dir, detailed=True)
