@@ -28,7 +28,7 @@ torch.cuda.manual_seed_all(9487)
 parser = argparse.ArgumentParser()
 parser.add_argument('--model', default='InstAParam-single', choices=['InstAParam', 'InstAParam-single'])
 parser.add_argument('--dset_name', default=None, required=True, choices=['C10', 'C100', 'Tiny', 'Fuzzy-C10'])
-parser.add_argument('--data_dir', default='./data/')
+parser.add_argument('--data_root', default='./data/')
 parser.add_argument('--load_dir', default=None)
 parser.add_argument('--batch_size', type=int, default=250)
 parser.add_argument('--mu', default=0.5, type=float, help='threshold for picking the block')
@@ -145,5 +145,5 @@ def test_one_by_one(testLoaders, model, dset_name, norm_type, load_dir, detailed
 if __name__ == '__main__':
     from dataloader import getDataloaders
     _, testLoaders = getDataloaders(dset_name=args.dset_name, shuffle=True, splits=['test'], 
-            data_root=args.data_dir, batch_size=args.batch_size, num_workers=0, num_tasks=num_tasks, raw=False)
+            data_root=args.data_root, batch_size=args.batch_size, num_workers=0, num_tasks=num_tasks, raw=False)
     test_one_by_one(testLoaders, args.model, args.dset_name, args.norm_type, args.load_dir, detailed=True)
